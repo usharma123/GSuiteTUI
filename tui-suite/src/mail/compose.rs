@@ -1,5 +1,6 @@
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::prelude::*;
+use ratatui::text::Span;
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
@@ -171,36 +172,69 @@ impl ComposeState {
             .split(inner);
 
         // To field
-        let to_style = if self.focus == ComposeField::To {
-            Style::default().fg(Color::Yellow)
+        let to_focused = self.focus == ComposeField::To;
+        let to_block = Block::default()
+            .title(if to_focused {
+                Span::styled(" To: ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+            } else {
+                Span::styled(" To: ", Style::default().fg(Color::DarkGray))
+            })
+            .borders(Borders::ALL)
+            .border_style(if to_focused {
+                Style::default().fg(Color::Yellow)
+            } else {
+                Style::default().fg(Color::DarkGray)
+            });
+        let to_text_style = if to_focused {
+            Style::default().fg(Color::White)
         } else {
-            Style::default()
+            Style::default().fg(Color::Gray)
         };
         let to_para = Paragraph::new(self.to.clone())
-            .block(Block::default().title("To:").borders(Borders::ALL))
-            .style(to_style);
+            .block(to_block)
+            .style(to_text_style);
         f.render_widget(to_para, chunks[0]);
 
         // Subject field
-        let subject_style = if self.focus == ComposeField::Subject {
-            Style::default().fg(Color::Yellow)
+        let subject_focused = self.focus == ComposeField::Subject;
+        let subject_block = Block::default()
+            .title(if subject_focused {
+                Span::styled(" Subject: ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+            } else {
+                Span::styled(" Subject: ", Style::default().fg(Color::DarkGray))
+            })
+            .borders(Borders::ALL)
+            .border_style(if subject_focused {
+                Style::default().fg(Color::Yellow)
+            } else {
+                Style::default().fg(Color::DarkGray)
+            });
+        let subject_text_style = if subject_focused {
+            Style::default().fg(Color::White)
         } else {
-            Style::default()
+            Style::default().fg(Color::Gray)
         };
         let subject_para = Paragraph::new(self.subject.clone())
-            .block(Block::default().title("Subject:").borders(Borders::ALL))
-            .style(subject_style);
+            .block(subject_block)
+            .style(subject_text_style);
         f.render_widget(subject_para, chunks[1]);
 
         // Body field
-        let body_style = if self.focus == ComposeField::Body {
-            Style::default().fg(Color::Yellow)
-        } else {
-            Style::default()
-        };
-        let body_block = Block::default().title("Body:").borders(Borders::ALL);
+        let body_focused = self.focus == ComposeField::Body;
+        let body_block = Block::default()
+            .title(if body_focused {
+                Span::styled(" Body: ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+            } else {
+                Span::styled(" Body: ", Style::default().fg(Color::DarkGray))
+            })
+            .borders(Borders::ALL)
+            .border_style(if body_focused {
+                Style::default().fg(Color::Yellow)
+            } else {
+                Style::default().fg(Color::DarkGray)
+            });
         let body_inner = body_block.inner(chunks[2]);
-        f.render_widget(body_block.style(body_style), chunks[2]);
+        f.render_widget(body_block, chunks[2]);
 
         // Render body text
         let height = body_inner.height as usize;

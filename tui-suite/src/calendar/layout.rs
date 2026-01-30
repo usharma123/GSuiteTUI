@@ -74,8 +74,8 @@ fn time_to_rows(start: &EventTime, end: &EventTime) -> (usize, usize) {
     let start_row = (start_time.hour() * 2 + start_time.minute() / 30) as usize;
     let end_row = (end_time.hour() * 2 + (end_time.minute() + 29) / 30) as usize;
 
-    // Ensure minimum 1 row
-    let end_row = end_row.max(start_row + 1);
+    // Ensure minimum 2 rows for visibility
+    let end_row = end_row.max(start_row + 2);
 
     (start_row, end_row.min(48))
 }

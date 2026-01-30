@@ -36,9 +36,12 @@ pub enum Action {
     JumpToNow,
     SelectEvent,
     Search,
+    SelectPrevDay,
+    SelectNextDay,
 
     // Mail
     SendMail,
+    CycleField,
 
     // Palette
     PaletteUp,
@@ -77,13 +80,15 @@ pub fn map_editor_key(key: KeyEvent) -> Action {
         KeyCode::Char('y') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::Redo,
         KeyCode::Char('b') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::ToggleBold,
         KeyCode::Char('i') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::ToggleItalic,
-        KeyCode::Char('1') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+        // Note: Ctrl+number combinations don't work in most terminals,
+        // so we use Alt+number instead for headings
+        KeyCode::Char('1') if key.modifiers.contains(KeyModifiers::ALT) => {
             Action::InsertHeading(1)
         }
-        KeyCode::Char('2') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+        KeyCode::Char('2') if key.modifiers.contains(KeyModifiers::ALT) => {
             Action::InsertHeading(2)
         }
-        KeyCode::Char('3') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+        KeyCode::Char('3') if key.modifiers.contains(KeyModifiers::ALT) => {
             Action::InsertHeading(3)
         }
         KeyCode::Char(c)
@@ -98,17 +103,23 @@ pub fn map_editor_key(key: KeyEvent) -> Action {
 
 pub fn map_calendar_key(key: KeyEvent) -> Action {
     match key.code {
-        KeyCode::Char('h') => Action::PrevWeek,
-        KeyCode::Char('l') => Action::NextWeek,
+        // Day navigation (h/l or arrow keys)
+        KeyCode::Char('h') => Action::SelectPrevDay,
+        KeyCode::Char('l') => Action::SelectNextDay,
+        KeyCode::Left => Action::SelectPrevDay,
+        KeyCode::Right => Action::SelectNextDay,
+        // Week navigation (H/L or shift+arrow)
+        KeyCode::Char('H') => Action::PrevWeek,
+        KeyCode::Char('L') => Action::NextWeek,
+        // Scroll (j/k or up/down arrows)
         KeyCode::Char('j') => Action::ScrollDown,
         KeyCode::Char('k') => Action::ScrollUp,
+        KeyCode::Up => Action::ScrollUp,
+        KeyCode::Down => Action::ScrollDown,
+        // Other
         KeyCode::Char('g') => Action::JumpToNow,
         KeyCode::Enter => Action::SelectEvent,
         KeyCode::Char('/') => Action::Search,
-        KeyCode::Up => Action::ScrollUp,
-        KeyCode::Down => Action::ScrollDown,
-        KeyCode::Left => Action::PrevWeek,
-        KeyCode::Right => Action::NextWeek,
         _ => Action::None,
     }
 }
@@ -116,6 +127,7 @@ pub fn map_calendar_key(key: KeyEvent) -> Action {
 pub fn map_compose_key(key: KeyEvent) -> Action {
     match key.code {
         KeyCode::Enter if key.modifiers.contains(KeyModifiers::CONTROL) => Action::SendMail,
+        KeyCode::Tab | KeyCode::BackTab => Action::CycleField,
         _ => map_editor_key(key),
     }
 }

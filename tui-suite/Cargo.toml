@@ -26,6 +26,7 @@ futures = "0.3"
 urlencoding = "2"
 rand = "0.8"
 sha2 = "0.10"
+unicode-width = "0.2"
 
 [dev-dependencies]
 tokio-test = "0.4"

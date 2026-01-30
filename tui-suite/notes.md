@@ -4,5 +4,17 @@ Check this out
 
 *Woah*
 
-HEadings dont work yet, will fix this 
+# HI 
+## HI
+### HIIIIII
+
+This looks great 
+
+I think I am happy 
+
+*Does Save flag work*
+
+
+
+
 

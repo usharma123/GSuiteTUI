@@ -9,6 +9,7 @@ pub struct EditorState {
     pub doc: Document,
     pub top_line: usize,
     pub path: PathBuf,
+    pub modified: bool,
 }
 
 impl EditorState {
@@ -20,12 +21,24 @@ impl EditorState {
             doc,
             top_line: 0,
             path,
+            modified: false,
         }
     }
 
-    pub fn save(&self) -> Result<()> {
+    pub fn save(&mut self) -> Result<()> {
         fs::write(&self.path, self.doc.to_string())?;
+        self.modified = false;
         Ok(())
+    }
+    
+    /// Check if the document has unsaved changes
+    pub fn is_modified(&self) -> bool {
+        self.modified
+    }
+    
+    /// Mark the document as modified
+    fn mark_modified(&mut self) {
+        self.modified = true;
     }
 
     // Cursor movement
@@ -75,6 +88,7 @@ impl EditorState {
         let pos = self.doc.cursor_index();
         self.doc.insert_char(pos, c);
         self.doc.cursor.col += 1;
+        self.mark_modified();
     }
 
     pub fn insert_newline(&mut self) {
@@ -82,6 +96,7 @@ impl EditorState {
         self.doc.insert_char(pos, '\n');
         self.doc.cursor.line += 1;
         self.doc.cursor.col = 0;
+        self.mark_modified();
     }
 
     pub fn backspace(&mut self) {
@@ -99,12 +114,14 @@ impl EditorState {
         } else {
             self.doc.cursor.col = self.doc.cursor.col.saturating_sub(1);
         }
+        self.mark_modified();
     }
 
     pub fn delete(&mut self) {
         let pos = self.doc.cursor_index();
         if pos < self.doc.rope.len_chars() {
             self.doc.delete_range(pos, pos + 1);
+            self.mark_modified();
         }
     }
 
@@ -112,22 +129,26 @@ impl EditorState {
     pub fn undo(&mut self) {
         self.doc.undo();
         self.doc.clamp_cursor();
+        self.mark_modified();
     }
 
     pub fn redo(&mut self) {
         self.doc.redo();
         self.doc.clamp_cursor();
+        self.mark_modified();
     }
 
     // Markdown formatting
     pub fn toggle_bold(&mut self) {
         self.insert_str_at_cursor("****");
         self.doc.cursor.col += 2;
+        self.mark_modified();
     }
 
     pub fn toggle_italic(&mut self) {
         self.insert_str_at_cursor("**");
         self.doc.cursor.col += 1;
+        self.mark_modified();
     }
 
     pub fn insert_heading(&mut self, level: u8) {
@@ -136,6 +157,7 @@ impl EditorState {
         let prefix = "#".repeat(level as usize) + " ";
         self.doc.insert_str(line_start, &prefix);
         self.doc.cursor.col += prefix.len();
+        self.mark_modified();
     }
 
     fn insert_str_at_cursor(&mut self, s: &str) {

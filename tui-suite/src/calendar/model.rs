@@ -56,18 +56,21 @@ pub struct CalendarState {
     pub scroll_offset: u16,
     pub sync_token: Option<String>,
     pub selected_event: Option<usize>,
+    pub selected_day: usize, // 0-6 (Mon-Sun)
 }
 
 impl CalendarState {
     pub fn new() -> Self {
         let today = Local::now().date_naive();
         let week_start = Self::week_start_for(today);
+        let selected_day = today.weekday().num_days_from_monday() as usize;
         Self {
             events: Vec::new(),
             week_start,
             scroll_offset: 8 * 2, // Start at 8 AM (2 rows per hour)
             sync_token: None,
             selected_event: None,
+            selected_day,
         }
     }
 
@@ -192,12 +195,14 @@ impl CalendarState {
             },
         ];
 
+        let selected_day = today.weekday().num_days_from_monday() as usize;
         Self {
             events,
             week_start,
             scroll_offset: 8 * 2,
             sync_token: None,
             selected_event: None,
+            selected_day,
         }
     }
 
@@ -231,6 +236,33 @@ impl CalendarState {
         self.week_start = Self::week_start_for(now.date_naive());
         let hour = now.hour() as u16;
         self.scroll_offset = (hour * 2).saturating_sub(4).min(48 - 10);
+        self.selected_day = now.date_naive().weekday().num_days_from_monday() as usize;
+    }
+
+    pub fn select_prev_day(&mut self) {
+        if self.selected_day > 0 {
+            self.selected_day -= 1;
+        } else {
+            // Wrap to previous week
+            self.prev_week();
+            self.selected_day = 6;
+        }
+        self.selected_event = None;
+    }
+
+    pub fn select_next_day(&mut self) {
+        if self.selected_day < 6 {
+            self.selected_day += 1;
+        } else {
+            // Wrap to next week
+            self.next_week();
+            self.selected_day = 0;
+        }
+        self.selected_event = None;
+    }
+
+    pub fn selected_date(&self) -> NaiveDate {
+        self.week_start + Duration::days(self.selected_day as i64)
     }
 
     pub fn events_for_day(&self, date: NaiveDate) -> Vec<&CalendarEvent> {

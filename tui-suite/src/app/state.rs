@@ -24,13 +24,16 @@ pub struct AppState {
 impl AppState {
     pub fn new(config: Config, task_tx: mpsc::UnboundedSender<TaskResult>) -> Self {
         let notes_path = config.notes_path.clone();
+        let scene = Scene::default();
+        let mut status = StatusLine::new("");
+        status.set_hint_for_scene(scene);
         Self {
-            scene: Scene::default(),
+            scene,
             editor: EditorState::new(notes_path),
             calendar: CalendarState::mock(),
             compose: None,
             palette: None,
-            status: StatusLine::new("Tab: switch | Ctrl+S: save | Ctrl+P: palette | q: quit"),
+            status,
             should_quit: false,
             config,
             task_tx,
@@ -56,6 +59,10 @@ impl AppState {
     }
 
     pub fn set_status(&mut self, msg: impl Into<String>) {
-        self.status = StatusLine::new(msg);
+        self.status.message = msg.into();
+    }
+
+    pub fn update_status_hint(&mut self) {
+        self.status.set_hint_for_scene(self.scene);
     }
 }

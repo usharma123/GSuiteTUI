@@ -1,4 +1,4 @@
-use crossterm::event::KeyEvent;
+use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::app::keymap::{
     map_calendar_key, map_compose_key, map_editor_key, map_global_key, map_palette_key, Action,
@@ -27,33 +27,37 @@ pub fn handle_key(app: &mut AppState, key: KeyEvent) {
         return;
     }
 
-    // Global actions
-    let action = map_global_key(key);
-    match action {
-        Action::Quit => {
-            app.should_quit = true;
-            return;
-        }
-        Action::CycleScene => {
-            app.scene = app.scene.next();
-            return;
-        }
-        Action::OpenPalette => {
-            app.open_palette();
-            return;
-        }
-        Action::Save => {
-            match app.editor.save() {
-                Ok(()) => app.set_status("Saved"),
-                Err(e) => app.set_status(format!("Save failed: {e}")),
+    // Global actions - but skip Tab when in MailCompose scene
+    let is_tab = matches!(key.code, KeyCode::Tab | KeyCode::BackTab);
+    if !(is_tab && app.scene == Scene::MailCompose) {
+        let action = map_global_key(key);
+        match action {
+            Action::Quit => {
+                app.should_quit = true;
+                return;
             }
-            return;
+            Action::CycleScene => {
+                app.scene = app.scene.next();
+                app.update_status_hint();
+                return;
+            }
+            Action::OpenPalette => {
+                app.open_palette();
+                return;
+            }
+            Action::Save => {
+                match app.editor.save() {
+                    Ok(()) => app.set_status("Saved"),
+                    Err(e) => app.set_status(format!("Save failed: {e}")),
+                }
+                return;
+            }
+            Action::ClosePalette => {
+                app.close_palette();
+                return;
+            }
+            _ => {}
         }
-        Action::ClosePalette => {
-            app.close_palette();
-            return;
-        }
-        _ => {}
     }
 
     // Scene-specific actions
@@ -95,6 +99,8 @@ fn handle_calendar_key(app: &mut AppState, key: KeyEvent) {
         Action::ScrollUp => app.calendar.scroll_up(),
         Action::ScrollDown => app.calendar.scroll_down(),
         Action::JumpToNow => app.calendar.jump_to_now(),
+        Action::SelectPrevDay => app.calendar.select_prev_day(),
+        Action::SelectNextDay => app.calendar.select_next_day(),
         _ => {}
     }
 }
@@ -105,6 +111,11 @@ fn handle_compose_key(app: &mut AppState, key: KeyEvent) {
         Action::SendMail => {
             app.set_status("Sending email...");
             // TODO: Trigger mail send task
+        }
+        Action::CycleField => {
+            if let Some(ref mut compose) = app.compose {
+                compose.cycle_focus();
+            }
         }
         _ => {
             // Forward to compose editor
@@ -126,9 +137,18 @@ fn handle_compose_key(app: &mut AppState, key: KeyEvent) {
 
 fn execute_palette_command(app: &mut AppState, cmd: PaletteCommand) {
     match cmd {
-        PaletteCommand::SwitchToEditor => app.scene = Scene::Editor,
-        PaletteCommand::SwitchToCalendar => app.scene = Scene::CalendarWeek,
-        PaletteCommand::ComposeEmail => app.open_compose(),
+        PaletteCommand::SwitchToEditor => {
+            app.scene = Scene::Editor;
+            app.update_status_hint();
+        }
+        PaletteCommand::SwitchToCalendar => {
+            app.scene = Scene::CalendarWeek;
+            app.update_status_hint();
+        }
+        PaletteCommand::ComposeEmail => {
+            app.open_compose();
+            app.update_status_hint();
+        }
         PaletteCommand::Save => {
             match app.editor.save() {
                 Ok(()) => app.set_status("Saved"),
