@@ -48,8 +48,9 @@ impl OAuthFlow {
         let pkce_challenge = URL_SAFE_NO_PAD.encode(challenge_hash);
 
         // Build authorization URL
+        // gmail.readonly needed for get_user_email() profile access
         let scopes =
-            "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.send";
+            "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly";
         let state: [u8; 16] = rand::random();
         let state_str = URL_SAFE_NO_PAD.encode(state);
 
