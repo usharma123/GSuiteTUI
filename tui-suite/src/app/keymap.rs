@@ -42,6 +42,9 @@ pub enum Action {
     // Mail
     SendMail,
     CycleField,
+    RefreshInbox,
+    OpenEmail,
+    CloseEmail,
 
     // Palette
     PaletteUp,
@@ -126,9 +129,23 @@ pub fn map_calendar_key(key: KeyEvent) -> Action {
 
 pub fn map_compose_key(key: KeyEvent) -> Action {
     match key.code {
+        // Ctrl+Enter (may not work in all terminals)
         KeyCode::Enter if key.modifiers.contains(KeyModifiers::CONTROL) => Action::SendMail,
+        // Ctrl+D as alternative send binding (works reliably)
+        KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::SendMail,
         KeyCode::Tab | KeyCode::BackTab => Action::CycleField,
         _ => map_editor_key(key),
+    }
+}
+
+pub fn map_inbox_key(key: KeyEvent) -> Action {
+    match key.code {
+        KeyCode::Char('j') | KeyCode::Down => Action::MoveDown,
+        KeyCode::Char('k') | KeyCode::Up => Action::MoveUp,
+        KeyCode::Enter => Action::OpenEmail,
+        KeyCode::Char('q') | KeyCode::Esc => Action::CloseEmail,
+        KeyCode::Char('r') => Action::RefreshInbox,
+        _ => Action::None,
     }
 }
 

@@ -157,7 +157,7 @@ impl ComposeState {
 
     pub fn render(&mut self, f: &mut Frame, area: Rect) {
         let block = Block::default()
-            .title("Compose Email (Ctrl+Enter to send)")
+            .title("Compose Email (Ctrl+D to send)")
             .borders(Borders::ALL);
         let inner = block.inner(area);
         f.render_widget(block, area);
