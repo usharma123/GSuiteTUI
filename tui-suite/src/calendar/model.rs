@@ -17,16 +17,18 @@ pub enum EventTime {
 }
 
 impl EventTime {
+    /// Returns the date in local timezone
     pub fn date(&self) -> NaiveDate {
         match self {
-            EventTime::DateTime(dt) => dt.date_naive(),
+            EventTime::DateTime(dt) => dt.with_timezone(&Local).date_naive(),
             EventTime::Date(d) => *d,
         }
     }
 
+    /// Returns the time in local timezone
     pub fn time(&self) -> Option<NaiveTime> {
         match self {
-            EventTime::DateTime(dt) => Some(dt.time()),
+            EventTime::DateTime(dt) => Some(dt.with_timezone(&Local).time()),
             EventTime::Date(_) => None,
         }
     }
