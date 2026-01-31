@@ -11,9 +11,9 @@ impl Scene {
     pub fn next(self) -> Self {
         match self {
             Scene::Editor => Scene::CalendarWeek,
-            Scene::CalendarWeek => Scene::Editor,
-            Scene::MailCompose => Scene::Editor,
+            Scene::CalendarWeek => Scene::MailInbox,
             Scene::MailInbox => Scene::Editor,
+            Scene::MailCompose => Scene::Editor,
         }
     }
 

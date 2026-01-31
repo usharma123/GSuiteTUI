@@ -7,6 +7,7 @@ use ratatui::Frame;
 pub enum PaletteCommand {
     SwitchToEditor,
     SwitchToCalendar,
+    OpenInbox,
     ComposeEmail,
     Save,
     SyncCalendar,
@@ -21,6 +22,7 @@ impl PaletteCommand {
         match self {
             PaletteCommand::SwitchToEditor => "Editor",
             PaletteCommand::SwitchToCalendar => "Calendar",
+            PaletteCommand::OpenInbox => "Inbox",
             PaletteCommand::ComposeEmail => "Compose Email",
             PaletteCommand::Save => "Save",
             PaletteCommand::SyncCalendar => "Sync Calendar",
@@ -35,6 +37,7 @@ impl PaletteCommand {
         vec![
             PaletteCommand::SwitchToEditor,
             PaletteCommand::SwitchToCalendar,
+            PaletteCommand::OpenInbox,
             PaletteCommand::ComposeEmail,
             PaletteCommand::Save,
             PaletteCommand::SyncCalendar,

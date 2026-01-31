@@ -19,7 +19,7 @@ pub fn render_app(f: &mut Frame, app: &mut AppState) {
             }
         }
         Scene::MailInbox => {
-            // TODO: Render inbox
+            app.inbox.render(f, root[0]);
         }
     }
 
