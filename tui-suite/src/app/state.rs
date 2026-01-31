@@ -4,7 +4,8 @@ use crate::calendar::CalendarState;
 use crate::config::Config;
 use crate::editor::EditorState;
 use crate::engine::TaskResult;
-use crate::mail::ComposeState;
+use crate::mail::{ComposeState, InboxState};
+use crate::storage::EventCache;
 use crate::ui::{PaletteState, StatusLine};
 
 use super::scene::Scene;
@@ -13,6 +14,7 @@ pub struct AppState {
     pub scene: Scene,
     pub editor: EditorState,
     pub calendar: CalendarState,
+    pub inbox: InboxState,
     pub compose: Option<ComposeState>,
     pub palette: Option<PaletteState>,
     pub status: StatusLine,
@@ -27,10 +29,19 @@ impl AppState {
         let scene = Scene::default();
         let mut status = StatusLine::new("");
         status.set_hint_for_scene(scene);
+
+        // Load cached calendar events
+        let mut calendar = CalendarState::new();
+        if let Ok(Some(cache)) = EventCache::load() {
+            calendar.events = cache.events;
+            calendar.sync_token = cache.sync_token;
+        }
+
         Self {
             scene,
             editor: EditorState::new(notes_path),
-            calendar: CalendarState::mock(),
+            calendar,
+            inbox: InboxState::new(),
             compose: None,
             palette: None,
             status,
@@ -38,6 +49,10 @@ impl AppState {
             config,
             task_tx,
         }
+    }
+
+    pub fn open_inbox(&mut self) {
+        self.scene = Scene::MailInbox;
     }
 
     pub fn open_palette(&mut self) {
