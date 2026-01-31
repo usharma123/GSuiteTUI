@@ -1,8 +1,21 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::io::Write;
 
 use crate::config::Config;
 use crate::error::{AppError, Result};
+
+fn debug_log(msg: &str) {
+    use std::fs::OpenOptions;
+    if let Ok(mut file) = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("/tmp/tui-debug.log")
+    {
+        let timestamp = chrono::Local::now().format("%H:%M:%S%.3f");
+        let _ = writeln!(file, "[{}] token_store: {}", timestamp, msg);
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenPair {
@@ -53,6 +66,7 @@ impl TokenStore for KeyringStore {
     }
 
     fn save(&self, tokens: &TokenPair) -> Result<()> {
+        debug_log(&format!("KeyringStore::save called, service: {}", self.service));
         let entry = keyring::Entry::new(&self.service, "tokens")
             .map_err(|e| AppError::Keyring(format!("Failed to create entry: {e}")))?;
 
@@ -63,6 +77,7 @@ impl TokenStore for KeyringStore {
             .set_password(&json)
             .map_err(|e| AppError::Keyring(format!("Failed to set password: {e}")))?;
 
+        debug_log("KeyringStore::save succeeded");
         Ok(())
     }
 
@@ -90,21 +105,26 @@ impl FileStore {
 
 impl TokenStore for FileStore {
     fn load(&self) -> Result<Option<TokenPair>> {
+        debug_log(&format!("FileStore::load, path: {:?}", self.path));
         if !self.path.exists() {
+            debug_log("FileStore: path does not exist");
             return Ok(None);
         }
 
         let content = std::fs::read_to_string(&self.path)?;
         let tokens: TokenPair = serde_json::from_str(&content)?;
+        debug_log("FileStore::load succeeded");
         Ok(Some(tokens))
     }
 
     fn save(&self, tokens: &TokenPair) -> Result<()> {
+        debug_log(&format!("FileStore::save, path: {:?}", self.path));
         if let Some(parent) = self.path.parent() {
             std::fs::create_dir_all(parent)?;
         }
         let json = serde_json::to_string_pretty(tokens)?;
         std::fs::write(&self.path, json)?;
+        debug_log("FileStore::save succeeded");
         Ok(())
     }
 
@@ -122,24 +142,9 @@ impl Default for FileStore {
     }
 }
 
-/// Returns a token store, preferring keyring but falling back to file
+/// Returns a token store - using FileStore for reliability
+/// (macOS keyring has inconsistent behavior with unsigned apps)
 pub fn get_token_store() -> Box<dyn TokenStore> {
-    let keyring = KeyringStore::new("term-workspace");
-
-    // Try to use keyring first
-    if keyring.load().is_ok() {
-        return Box::new(keyring);
-    }
-
-    // Try to create a test entry to see if keyring works
-    let test_entry = keyring::Entry::new("term-workspace-test", "test");
-    if let Ok(entry) = test_entry {
-        if entry.set_password("test").is_ok() {
-            let _ = entry.delete_credential();
-            return Box::new(keyring);
-        }
-    }
-
-    // Fall back to file store
+    debug_log("Using FileStore for token storage");
     Box::new(FileStore::default())
 }
