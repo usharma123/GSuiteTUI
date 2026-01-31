@@ -78,8 +78,8 @@ impl CalendarProvider for GoogleCalendarProvider {
                 // Initial sync: get events from 30 days ago to 90 days ahead
                 let time_min = Utc::now() - chrono::Duration::days(30);
                 let time_max = Utc::now() + chrono::Duration::days(90);
-                params.push(format!("timeMin={}", time_min.to_rfc3339()));
-                params.push(format!("timeMax={}", time_max.to_rfc3339()));
+                params.push(format!("timeMin={}", urlencoding::encode(&time_min.to_rfc3339())));
+                params.push(format!("timeMax={}", urlencoding::encode(&time_max.to_rfc3339())));
                 params.push("singleEvents=true".to_string());
             }
 
