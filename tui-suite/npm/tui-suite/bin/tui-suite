@@ -1,0 +1,41 @@
+#!/usr/bin/env node
+
+const { execFileSync } = require('child_process');
+const path = require('path');
+const fs = require('fs');
+
+const binDir = __dirname;
+const platform = process.platform;
+const binaryName = platform === 'win32' ? 'tui-suite.exe' : 'tui-suite';
+
+// Look for the actual binary
+const candidates = [
+  path.join(binDir, binaryName),
+  path.join(binDir, '..', 'target', 'release', binaryName),
+];
+
+let binaryPath = null;
+for (const candidate of candidates) {
+  if (fs.existsSync(candidate)) {
+    binaryPath = candidate;
+    break;
+  }
+}
+
+if (!binaryPath) {
+  console.error('tui-suite binary not found!');
+  console.error('Run: npm run postinstall');
+  process.exit(1);
+}
+
+try {
+  execFileSync(binaryPath, process.argv.slice(2), {
+    stdio: 'inherit',
+    env: process.env,
+  });
+} catch (error) {
+  if (error.status !== undefined) {
+    process.exit(error.status);
+  }
+  throw error;
+}
