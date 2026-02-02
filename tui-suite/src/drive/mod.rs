@@ -96,7 +96,11 @@ impl DriveProvider {
 
     pub async fn export_doc_markdown(&self, doc: &DriveDoc) -> Result<DriveDocContent> {
         let html = self.export_doc_html(&doc.id).await?;
-        let markdown = html2md::parse_html_extended(&html);
+        let cleaned = clean_google_docs_html(&html);
+        let mut markdown = html2md::parse_html_extended(&cleaned);
+        if markdown.contains("<span") || markdown.contains("style=") {
+            markdown = html2text::from_read(cleaned.as_bytes(), 100);
+        }
         Ok(DriveDocContent {
             doc: doc.clone(),
             markdown,
@@ -199,4 +203,45 @@ fn build_multipart_related(
     body.extend_from_slice(b"\r\n");
     body.extend_from_slice(format!("--{}--", boundary).as_bytes());
     body
+}
+
+fn clean_google_docs_html(input: &str) -> String {
+    let mut html = input.to_string();
+
+    html = strip_block_tag(html, "style");
+    html = strip_block_tag(html, "head");
+
+    html = strip_opening_tag(html, "span");
+    html = html.replace("</span>", "");
+    html = strip_opening_tag(html, "meta");
+    html = strip_opening_tag(html, "link");
+
+    html
+}
+
+fn strip_block_tag(mut html: String, tag: &str) -> String {
+    let start_tag = format!("<{}", tag);
+    let end_tag = format!("</{}>", tag);
+    loop {
+        let Some(start) = html.find(&start_tag) else { break };
+        let Some(end_rel) = html[start..].find(&end_tag) else {
+            break;
+        };
+        let end = start + end_rel + end_tag.len();
+        html.replace_range(start..end, "");
+    }
+    html
+}
+
+fn strip_opening_tag(mut html: String, tag: &str) -> String {
+    let start_tag = format!("<{}", tag);
+    loop {
+        let Some(start) = html.find(&start_tag) else { break };
+        let Some(close_rel) = html[start..].find('>') else {
+            break;
+        };
+        let end = start + close_rel + 1;
+        html.replace_range(start..end, "");
+    }
+    html
 }

@@ -15,6 +15,7 @@ pub enum EditorSource {
 pub struct EditorState {
     pub doc: Document,
     pub top_line: usize,
+    pub top_line_offset: usize,
     pub source: EditorSource,
     pub modified: bool,
 }
@@ -27,6 +28,7 @@ impl EditorState {
         Self {
             doc,
             top_line: 0,
+            top_line_offset: 0,
             source: EditorSource::Local { path },
             modified: false,
         }
@@ -37,6 +39,7 @@ impl EditorState {
         Self {
             doc: doc_state,
             top_line: 0,
+            top_line_offset: 0,
             source: EditorSource::DriveDoc { doc },
             modified: false,
         }
@@ -193,14 +196,6 @@ impl EditorState {
     }
 
     // Rendering helpers
-    pub fn ensure_cursor_visible(&mut self, height: usize) {
-        if self.doc.cursor.line < self.top_line {
-            self.top_line = self.doc.cursor.line;
-        } else if self.doc.cursor.line >= self.top_line + height {
-            self.top_line = self.doc.cursor.line.saturating_sub(height - 1);
-        }
-    }
-
     pub fn source_title(&self) -> String {
         match &self.source {
             EditorSource::Local { path } => {
@@ -227,6 +222,7 @@ impl EditorState {
     pub fn replace_with_drive_doc(&mut self, doc: DriveDoc, markdown: &str) {
         self.doc = Document::from_str(markdown);
         self.top_line = 0;
+        self.top_line_offset = 0;
         self.source = EditorSource::DriveDoc { doc };
         self.modified = false;
     }
@@ -236,6 +232,7 @@ impl EditorState {
         let content = fs::read_to_string(&path).unwrap_or_default();
         self.doc = Document::from_str(&content);
         self.top_line = 0;
+        self.top_line_offset = 0;
         self.source = EditorSource::Local { path };
         self.modified = false;
         Ok(())
