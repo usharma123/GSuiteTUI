@@ -88,26 +88,18 @@ jobs:
             artifacts/**/*.zip
           generate_release_notes: true
 
-  publish-npm:
-    name: Publish to npm
+  publish-crate:
+    name: Publish to crates.io
     needs: release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
 
-      - name: Update npm package version
-        working-directory: tui-suite/npm/tui-suite
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          npm version $VERSION --no-git-tag-version
-
-      - name: Publish to npm
-        working-directory: tui-suite/npm/tui-suite
-        run: npm publish --access public
+      - name: Publish crate
+        working-directory: tui-suite
+        run: cargo publish --locked
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
