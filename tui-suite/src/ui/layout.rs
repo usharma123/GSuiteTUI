@@ -30,23 +30,23 @@ pub fn render_app(f: &mut Frame, app: &mut AppState) {
     // Main content area
     match app.scene {
         Scene::Editor => app.editor.render(f, root[1]),
-        Scene::CalendarWeek => render_with_shortcuts(f, root[1], &shortcuts_hint, |area| {
+        Scene::CalendarWeek => render_with_shortcuts(f, root[1], &shortcuts_hint, |f, area| {
             app.calendar.render_week(f, area);
         }),
         Scene::MailCompose => {
             if let Some(ref mut compose) = app.compose {
-                render_with_shortcuts(f, root[1], &shortcuts_hint, |area| {
+                render_with_shortcuts(f, root[1], &shortcuts_hint, |f, area| {
                     compose.render(f, area);
                 });
             }
         }
         Scene::MailInbox => {
-            render_with_shortcuts(f, root[1], &shortcuts_hint, |area| {
+            render_with_shortcuts(f, root[1], &shortcuts_hint, |f, area| {
                 app.inbox.render(f, area);
             });
         }
         Scene::DriveBrowser => {
-            render_with_shortcuts(f, root[1], &shortcuts_hint, |area| {
+            render_with_shortcuts(f, root[1], &shortcuts_hint, |f, area| {
                 app.drive.render(f, area);
             });
         }
@@ -94,10 +94,10 @@ fn render_tabs(f: &mut Frame, area: Rect, scene: Scene) {
 
 fn render_with_shortcuts<F>(f: &mut Frame, area: Rect, hint: &str, render_content: F)
 where
-    F: FnOnce(Rect),
+    F: FnOnce(&mut Frame, Rect),
 {
     if hint.is_empty() {
-        render_content(area);
+        render_content(f, area);
         return;
     }
 
@@ -106,7 +106,7 @@ where
         .constraints([Constraint::Min(1), Constraint::Length(1)])
         .split(area);
 
-    render_content(chunks[0]);
+    render_content(f, chunks[0]);
     render_shortcuts_bar(f, chunks[1], hint);
 }
 
