@@ -21,10 +21,24 @@ impl StatusLine {
 
     pub fn set_hint_for_scene(&mut self, scene: Scene) {
         self.hint = match scene {
-            Scene::Editor => "Ctrl+S: save | Ctrl+1/2/3: heading | Tab: next view".to_string(),
-            Scene::CalendarWeek => "h/l: day | H/L: week | j/k: scroll | g: now | Enter: details".to_string(),
-            Scene::MailCompose => "Tab: next field | Ctrl+Enter: send | q: quit".to_string(),
-            Scene::MailInbox => "Tab: next view | q: quit".to_string(),
+            Scene::Editor => {
+                "Ctrl+S: save | Alt+1/2/3: heading | Ctrl+R: sync | Alt+D: Drive | Tab: next view"
+                    .to_string()
+            }
+            Scene::CalendarWeek => {
+                "h/l: day | H/L: week | j/k: scroll | g: now | Ctrl+R or s: sync"
+                    .to_string()
+            }
+            Scene::MailCompose => {
+                "Tab: next field | Ctrl+D: send | Ctrl+R: sync | Alt+D: Drive".to_string()
+            }
+            Scene::MailInbox => {
+                "r: refresh | Ctrl+R: sync | Alt+D: Drive | Tab: next view".to_string()
+            }
+            Scene::DriveBrowser => {
+                "Type to search | Enter: open | Ctrl+N: new doc | Alt+D: Drive | Tab: next view"
+                    .to_string()
+            }
         };
     }
 

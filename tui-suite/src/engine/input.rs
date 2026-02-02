@@ -1,8 +1,8 @@
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::app::keymap::{
-    map_calendar_key, map_compose_key, map_editor_key, map_global_key, map_inbox_key,
-    map_palette_key, Action,
+    map_calendar_key, map_compose_key, map_drive_key, map_editor_key, map_global_key,
+    map_inbox_key, map_palette_key, Action,
 };
 use crate::app::{AppState, Scene};
 use crate::auth::{token_store::get_token_store, OAuthFlow};
@@ -10,8 +10,8 @@ use crate::calendar::sync::GoogleCalendarProvider;
 use crate::drive::DriveProvider;
 use crate::editor::markdown::markdown_to_html;
 use crate::engine::tasks::{
-    spawn_calendar_sync, spawn_drive_list, spawn_drive_open, spawn_drive_save, spawn_email_fetch,
-    spawn_inbox_sync, spawn_mail_send, spawn_oauth, CalendarSyncResult,
+    spawn_calendar_sync, spawn_drive_create, spawn_drive_list, spawn_drive_open, spawn_drive_save,
+    spawn_email_fetch, spawn_inbox_sync, spawn_mail_send, spawn_oauth, CalendarSyncResult,
 };
 use crate::mail::gmail::{GmailProvider, MailProvider};
 use crate::mail::mime::EmailMessage;
@@ -80,6 +80,9 @@ pub fn handle_key(app: &mut AppState, key: KeyEvent) {
             Action::CycleScene => {
                 app.scene = app.scene.next();
                 app.update_status_hint();
+                if app.scene == Scene::DriveBrowser {
+                    open_drive_browser(app);
+                }
                 return;
             }
             Action::OpenPalette => {
@@ -90,9 +93,23 @@ pub fn handle_key(app: &mut AppState, key: KeyEvent) {
                 handle_editor_save(app);
                 return;
             }
-            Action::ClosePalette => {
-                app.close_palette();
+            Action::SyncCalendar => {
+                trigger_calendar_sync(app);
                 return;
+            }
+            Action::OpenDriveBrowser => {
+                open_drive_browser(app);
+                return;
+            }
+            Action::CreateDriveDoc => {
+                start_create_drive_doc(app);
+                return;
+            }
+            Action::ClosePalette => {
+                if app.palette.is_some() {
+                    app.close_palette();
+                    return;
+                }
             }
             _ => {}
         }
@@ -104,6 +121,7 @@ pub fn handle_key(app: &mut AppState, key: KeyEvent) {
         Scene::CalendarWeek => handle_calendar_key(app, key),
         Scene::MailCompose => handle_compose_key(app, key),
         Scene::MailInbox => handle_inbox_key(app, key),
+        Scene::DriveBrowser => handle_drive_key(app, key),
     }
 }
 
@@ -139,6 +157,7 @@ fn handle_calendar_key(app: &mut AppState, key: KeyEvent) {
         Action::JumpToNow => app.calendar.jump_to_now(),
         Action::SelectPrevDay => app.calendar.select_prev_day(),
         Action::SelectNextDay => app.calendar.select_next_day(),
+        Action::SyncCalendar => trigger_calendar_sync(app),
         _ => {}
     }
 }
@@ -291,6 +310,42 @@ fn handle_compose_key(app: &mut AppState, key: KeyEvent) {
     }
 }
 
+fn handle_drive_key(app: &mut AppState, key: KeyEvent) {
+    let action = map_drive_key(key);
+    match action {
+        Action::DriveUp => app.drive.move_up(),
+        Action::DriveDown => app.drive.move_down(),
+        Action::DriveSelect => {
+            if app.drive.is_creating() {
+                submit_create_drive_doc(app);
+            } else if let Some(doc) = app.drive.selected_doc() {
+                open_drive_doc(app, doc);
+            }
+        }
+        Action::DriveType(c) => {
+            app.drive.type_char(c);
+            if !app.drive.is_creating() {
+                trigger_drive_browser_list(app);
+            }
+        }
+        Action::DriveBackspace => {
+            app.drive.backspace();
+            if !app.drive.is_creating() {
+                trigger_drive_browser_list(app);
+            }
+        }
+        Action::DriveCancel => {
+            if app.drive.is_creating() {
+                app.drive.cancel_create();
+            } else if !app.drive.query.is_empty() {
+                app.drive.clear_query();
+                trigger_drive_browser_list(app);
+            }
+        }
+        _ => {}
+    }
+}
+
 fn execute_palette_command(app: &mut AppState, cmd: PaletteCommand) -> bool {
     match cmd {
         PaletteCommand::SwitchToEditor => {
@@ -302,6 +357,13 @@ fn execute_palette_command(app: &mut AppState, cmd: PaletteCommand) -> bool {
             app.scene = Scene::CalendarWeek;
             app.update_status_hint();
             true
+        }
+        PaletteCommand::OpenDriveDoc => {
+            if let Some(ref mut palette) = app.palette {
+                palette.enter_drive_search();
+            }
+            trigger_drive_search(app);
+            false
         }
         PaletteCommand::ComposeEmail => {
             app.open_compose();
@@ -332,45 +394,7 @@ fn execute_palette_command(app: &mut AppState, cmd: PaletteCommand) -> bool {
             true
         }
         PaletteCommand::SyncCalendar => {
-            debug_log("SyncCalendar triggered");
-
-            // Check for stored tokens
-            let store = get_token_store();
-            debug_log("Got token store, attempting load...");
-            match store.load() {
-                Ok(Some(tokens)) if !tokens.is_expired() => {
-                    debug_log(&format!(
-                        "Tokens found, expires_at: {:?}, syncing...", tokens.expires_at
-                    ));
-                    app.set_status("Syncing calendar...");
-                    let access_token = tokens.access_token.clone();
-                    let calendar_id = app.config.calendar_id.clone();
-                    let sync_token = app.calendar.sync_token.clone();
-                    let tx = app.task_tx.clone();
-                    spawn_calendar_sync(tx, move || async move {
-                        let provider = GoogleCalendarProvider::new(access_token, calendar_id);
-                        use crate::calendar::sync::CalendarProvider;
-                        let result = provider.sync(sync_token).await;
-                        let r = result?;
-                        Ok(CalendarSyncResult {
-                            events: r.events,
-                            sync_token: r.sync_token,
-                        })
-                    });
-                }
-                Ok(Some(_)) => {
-                    debug_log("Token expired");
-                    app.set_status("Token expired - please Login Google again");
-                }
-                Ok(None) => {
-                    debug_log("No tokens found in store");
-                    app.set_status("Not logged in - use Login Google first");
-                }
-                Err(e) => {
-                    debug_log(&format!("Token load error: {}", e));
-                    app.set_status(format!("Token load error: {e}"));
-                }
-            }
+            trigger_calendar_sync(app);
             true
         }
         PaletteCommand::Undo => {
@@ -424,13 +448,6 @@ fn execute_palette_command(app: &mut AppState, cmd: PaletteCommand) -> bool {
                 }
             }
             true
-        }
-        PaletteCommand::OpenDriveDoc => {
-            if let Some(ref mut palette) = app.palette {
-                palette.enter_drive_search();
-            }
-            trigger_drive_search(app);
-            false
         }
     }
 }
@@ -498,6 +515,136 @@ fn trigger_drive_search(app: &mut AppState) {
             if let Some(ref mut palette) = app.palette {
                 palette.set_drive_error(format!("Token error: {e}"));
             }
+        }
+    }
+}
+
+fn open_drive_browser(app: &mut AppState) {
+    app.scene = Scene::DriveBrowser;
+    app.update_status_hint();
+    app.drive.reset();
+    trigger_drive_browser_list(app);
+}
+
+fn trigger_drive_browser_list(app: &mut AppState) {
+    let query = app.drive.query.clone();
+    let store = get_token_store();
+    match store.load() {
+        Ok(Some(tokens)) if !tokens.is_expired() => {
+            app.drive.set_loading();
+            let access_token = tokens.access_token.clone();
+            let tx = app.task_tx.clone();
+            spawn_drive_list(tx, move || async move {
+                let provider = DriveProvider::new(access_token);
+                provider.list_docs(&query, 50).await
+            });
+        }
+        Ok(Some(_)) => {
+            app.drive
+                .set_error("Token expired - please Login Google again".to_string());
+        }
+        Ok(None) => {
+            app.drive
+                .set_error("Not logged in - use Login Google first".to_string());
+        }
+        Err(e) => {
+            app.drive.set_error(format!("Token error: {e}"));
+        }
+    }
+}
+
+fn start_create_drive_doc(app: &mut AppState) {
+    let store = get_token_store();
+    match store.load() {
+        Ok(Some(tokens)) if !tokens.is_expired() => {
+            if app.scene != Scene::DriveBrowser {
+                open_drive_browser(app);
+            }
+            app.drive.start_create();
+            app.set_status("Enter new Drive doc name");
+        }
+        Ok(Some(_)) => {
+            app.set_status("Token expired - please Login Google again");
+        }
+        Ok(None) => {
+            app.set_status("Not logged in - use Login Google first");
+        }
+        Err(e) => {
+            app.set_status(format!("Token error: {e}"));
+        }
+    }
+}
+
+fn submit_create_drive_doc(app: &mut AppState) {
+    let name = app.drive.new_doc_name.trim().to_string();
+    if name.is_empty() {
+        app.set_status("Document name required");
+        return;
+    }
+
+    let store = get_token_store();
+    match store.load() {
+        Ok(Some(tokens)) if !tokens.is_expired() => {
+            app.set_status("Creating Drive doc...");
+            app.drive.cancel_create();
+            let access_token = tokens.access_token.clone();
+            let tx = app.task_tx.clone();
+            spawn_drive_create(tx, move || async move {
+                let provider = DriveProvider::new(access_token);
+                provider.create_doc(&name).await
+            });
+        }
+        Ok(Some(_)) => {
+            app.set_status("Token expired - please Login Google again");
+        }
+        Ok(None) => {
+            app.set_status("Not logged in - use Login Google first");
+        }
+        Err(e) => {
+            app.set_status(format!("Token error: {e}"));
+        }
+    }
+}
+
+fn trigger_calendar_sync(app: &mut AppState) {
+    debug_log("SyncCalendar triggered");
+
+    // Check for stored tokens
+    let store = get_token_store();
+    debug_log("Got token store, attempting load...");
+    match store.load() {
+        Ok(Some(tokens)) if !tokens.is_expired() => {
+            debug_log(&format!(
+                "Tokens found, expires_at: {:?}, syncing...",
+                tokens.expires_at
+            ));
+            app.set_status("Syncing calendar...");
+            let access_token = tokens.access_token.clone();
+            let calendar_id = app.config.calendar_id.clone();
+            let sync_token = app.calendar.sync_token.clone();
+            let tx = app.task_tx.clone();
+            spawn_calendar_sync(tx, move || async move {
+                let provider = GoogleCalendarProvider::new(access_token, calendar_id);
+                use crate::calendar::sync::CalendarProvider;
+                let result = provider.sync(sync_token).await;
+                let r = result?;
+                Ok(CalendarSyncResult {
+                    events: r.events,
+                    sync_token: r.sync_token,
+                })
+            });
+        }
+        Ok(Some(_)) => {
+            debug_log("Token expired");
+            app.set_status("Token expired - please Login Google again");
+        }
+        Ok(None) => {
+            debug_log("No tokens found in store");
+            app.set_status("Not logged in - use Login Google first");
+        }
+        Err(e) => {
+            debug_log(&format!("Token load error: {}", e));
+            app.set_status(format!("Token load error: {e}"));
         }
     }
 }

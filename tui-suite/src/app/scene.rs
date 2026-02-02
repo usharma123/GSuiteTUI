@@ -5,6 +5,7 @@ pub enum Scene {
     CalendarWeek,
     MailCompose,
     MailInbox,
+    DriveBrowser,
 }
 
 impl Scene {
@@ -12,7 +13,8 @@ impl Scene {
         match self {
             Scene::Editor => Scene::CalendarWeek,
             Scene::CalendarWeek => Scene::MailInbox,
-            Scene::MailInbox => Scene::Editor,
+            Scene::MailInbox => Scene::DriveBrowser,
+            Scene::DriveBrowser => Scene::Editor,
             Scene::MailCompose => Scene::Editor,
         }
     }
@@ -23,6 +25,7 @@ impl Scene {
             Scene::CalendarWeek => "Calendar",
             Scene::MailCompose => "Compose Email",
             Scene::MailInbox => "Inbox",
+            Scene::DriveBrowser => "Drive",
         }
     }
 }

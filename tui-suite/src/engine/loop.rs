@@ -153,17 +153,35 @@ fn handle_task_result(app: &mut AppState, result: TaskResult) {
             app.set_status(format!("Failed to load email: {e}"));
         }
         TaskResult::DriveDocsListed(Ok(docs)) => {
+            let mut handled = false;
             if let Some(ref mut palette) = app.palette {
                 if palette.is_drive_search() {
-                    palette.set_drive_results(docs);
+                    palette.set_drive_results(docs.clone());
+                    handled = true;
                 }
+            }
+            if app.scene == Scene::DriveBrowser || app.drive.loading {
+                app.drive.set_docs(docs);
+                handled = true;
+            }
+            if !handled {
+                debug_log("Drive docs listed but no active view to receive them");
             }
         }
         TaskResult::DriveDocsListed(Err(e)) => {
+            let mut handled = false;
             if let Some(ref mut palette) = app.palette {
                 if palette.is_drive_search() {
                     palette.set_drive_error(format!("Drive search failed: {e}"));
+                    handled = true;
                 }
+            }
+            if app.scene == Scene::DriveBrowser || app.drive.loading {
+                app.drive.set_error(format!("Drive search failed: {e}"));
+                handled = true;
+            }
+            if !handled {
+                debug_log(&format!("Drive list failed with no active view: {e}"));
             }
         }
         TaskResult::DriveDocOpened(Ok(content)) => {
@@ -182,6 +200,15 @@ fn handle_task_result(app: &mut AppState, result: TaskResult) {
         }
         TaskResult::DriveDocSaved(Err(e)) => {
             app.set_status(format!("Drive save failed: {e}"));
+        }
+        TaskResult::DriveDocCreated(Ok(doc)) => {
+            app.editor.replace_with_drive_doc(doc.clone(), "");
+            app.scene = Scene::Editor;
+            app.update_status_hint();
+            app.set_status(format!("Created {}", doc.name));
+        }
+        TaskResult::DriveDocCreated(Err(e)) => {
+            app.set_status(format!("Drive create failed: {e}"));
         }
     }
 }

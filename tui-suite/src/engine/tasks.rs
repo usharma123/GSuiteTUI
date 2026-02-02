@@ -17,6 +17,7 @@ pub enum TaskResult {
     DriveDocsListed(Result<Vec<DriveDoc>>),
     DriveDocOpened(Result<DriveDocContent>),
     DriveDocSaved(Result<()>),
+    DriveDocCreated(Result<DriveDoc>),
 }
 
 #[derive(Debug)]
@@ -110,5 +111,16 @@ where
     tokio::spawn(async move {
         let result = save_fn().await;
         let _ = tx.send(TaskResult::DriveDocSaved(result));
+    });
+}
+
+pub fn spawn_drive_create<F, Fut>(tx: mpsc::UnboundedSender<TaskResult>, create_fn: F)
+where
+    F: FnOnce() -> Fut + Send + 'static,
+    Fut: std::future::Future<Output = Result<DriveDoc>> + Send,
+{
+    tokio::spawn(async move {
+        let result = create_fn().await;
+        let _ = tx.send(TaskResult::DriveDocCreated(result));
     });
 }

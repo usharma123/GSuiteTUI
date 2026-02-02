@@ -10,7 +10,7 @@ A terminal-based workspace application with a Markdown editor, calendar week vie
 - Markdown formatting shortcuts:
   - `Ctrl+B` - Insert bold markers (`**text**`)
   - `Ctrl+I` - Insert italic markers (`*text*`)
-  - `Ctrl+1/2/3` - Insert heading markers (`#`, `##`, `###`)
+  - `Alt+1/2/3` - Insert heading markers (`#`, `##`, `###`)
 - Auto-save with `Ctrl+S`
 - File saved to `notes.md` in current directory
 
@@ -35,6 +35,7 @@ A terminal-based workspace application with a Markdown editor, calendar week vie
   - **Compose Email** - Open email composer
   - **Save** - Save current document
   - **Sync Calendar** - Sync with Google Calendar
+  - **Open Drive Doc** - Search Google Docs
   - **Undo** / **Redo** - Undo/redo in editor
   - **Login Google** - Start OAuth flow
   - **Quit** - Exit application
@@ -44,18 +45,28 @@ A terminal-based workspace application with a Markdown editor, calendar week vie
 - Body supports Markdown (rendered to HTML when sent)
 - `Ctrl+Enter` to send (requires Google credentials)
 
+### Drive Browser
+- Browse and search your Google Docs
+- `Alt+D` to open Drive view
+- Type to filter, `Enter` to open
+- `Ctrl+N` to create a new Google Doc
+
 ### Google Integration (requires setup)
 - **Google Calendar**: Sync events with incremental sync tokens
 - **Gmail**: Send emails with Markdown body (converted to HTML)
+- **Drive**: Browse and create Google Docs
 
 ## Keybindings
 
 ### Global
 | Key | Action |
 |-----|--------|
-| `Tab` | Cycle between Editor and Calendar views |
+| `Tab` | Cycle between views |
 | `Ctrl+P` | Open command palette |
 | `Ctrl+S` | Save document |
+| `Ctrl+R` | Sync calendar |
+| `Alt+D` | Open Drive browser |
+| `Ctrl+N` | New Drive doc |
 | `Esc` | Close palette/modal |
 | `q` | Quit application |
 
@@ -70,7 +81,7 @@ A terminal-based workspace application with a Markdown editor, calendar week vie
 | `Ctrl+Y` | Redo |
 | `Ctrl+B` | Insert bold |
 | `Ctrl+I` | Insert italic |
-| `Ctrl+1/2/3` | Insert heading |
+| `Alt+1/2/3` | Insert heading |
 
 ### Calendar
 | Key | Action |
@@ -78,6 +89,7 @@ A terminal-based workspace application with a Markdown editor, calendar week vie
 | `h` / `l` | Previous/next week |
 | `j` / `k` | Scroll time down/up |
 | `g` | Jump to now |
+| `s` | Sync calendar |
 
 ### Command Palette
 | Key | Action |
@@ -86,6 +98,15 @@ A terminal-based workspace application with a Markdown editor, calendar week vie
 | `Enter` | Select command |
 | `Esc` | Close palette |
 | Type | Filter commands |
+
+### Drive Browser
+| Key | Action |
+|-----|--------|
+| `↑` / `↓` | Navigate |
+| `Enter` | Open selected doc |
+| Type | Search docs |
+| `Ctrl+N` | New doc |
+| `Esc` | Clear search / cancel create |
 
 ## Installation
 
@@ -138,5 +159,4 @@ src/
 
 - Calendar displays mock data until Google credentials are configured
 - Email sending requires Google credentials
-- No inbox view yet (compose only)
 - Single file editing (notes.md)

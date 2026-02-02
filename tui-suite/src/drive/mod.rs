@@ -3,6 +3,9 @@ use serde::Deserialize;
 
 use crate::error::{AppError, Result};
 
+pub mod browser;
+pub use browser::{DriveBrowserMode, DriveBrowserState};
+
 #[derive(Debug, Clone)]
 pub struct DriveDoc {
     pub id: String,
@@ -146,6 +149,38 @@ impl DriveProvider {
         }
 
         Ok(())
+    }
+
+    pub async fn create_doc(&self, name: &str) -> Result<DriveDoc> {
+        let url = "https://www.googleapis.com/drive/v3/files?fields=id,name,modifiedTime";
+        let body = serde_json::json!({
+            "name": name,
+            "mimeType": "application/vnd.google-apps.document",
+        });
+
+        let response = self
+            .client
+            .post(url)
+            .bearer_auth(&self.access_token)
+            .json(&body)
+            .send()
+            .await?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let text = response.text().await.unwrap_or_default();
+            return Err(AppError::Api {
+                status: status.as_u16(),
+                message: text,
+            });
+        }
+
+        let file: DriveFile = response.json().await?;
+        Ok(DriveDoc {
+            id: file.id,
+            name: file.name,
+            modified_time: parse_modified_time(file.modified_time.as_deref()),
+        })
     }
 }
 

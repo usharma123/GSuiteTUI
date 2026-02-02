@@ -8,6 +8,9 @@ pub enum Action {
     OpenPalette,
     ClosePalette,
     Save,
+    SyncCalendar,
+    OpenDriveBrowser,
+    CreateDriveDoc,
 
     // Navigation
     MoveUp,
@@ -53,6 +56,14 @@ pub enum Action {
     PaletteType(char),
     PaletteBackspace,
 
+    // Drive browser
+    DriveUp,
+    DriveDown,
+    DriveSelect,
+    DriveType(char),
+    DriveBackspace,
+    DriveCancel,
+
     // No action
     None,
 }
@@ -63,6 +74,9 @@ pub fn map_global_key(key: KeyEvent) -> Action {
         KeyCode::Tab => Action::CycleScene,
         KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::OpenPalette,
         KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::Save,
+        KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::SyncCalendar,
+        KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::ALT) => Action::OpenDriveBrowser,
+        KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::CreateDriveDoc,
         KeyCode::Esc => Action::ClosePalette,
         _ => Action::None,
     }
@@ -123,6 +137,7 @@ pub fn map_calendar_key(key: KeyEvent) -> Action {
         KeyCode::Char('g') => Action::JumpToNow,
         KeyCode::Enter => Action::SelectEvent,
         KeyCode::Char('/') => Action::Search,
+        KeyCode::Char('s') => Action::SyncCalendar,
         _ => Action::None,
     }
 }
@@ -161,6 +176,23 @@ pub fn map_palette_key(key: KeyEvent) -> Action {
                 && !key.modifiers.contains(KeyModifiers::ALT) =>
         {
             Action::PaletteType(c)
+        }
+        _ => Action::None,
+    }
+}
+
+pub fn map_drive_key(key: KeyEvent) -> Action {
+    match key.code {
+        KeyCode::Up => Action::DriveUp,
+        KeyCode::Down => Action::DriveDown,
+        KeyCode::Enter => Action::DriveSelect,
+        KeyCode::Esc => Action::DriveCancel,
+        KeyCode::Backspace => Action::DriveBackspace,
+        KeyCode::Char(c)
+            if !key.modifiers.contains(KeyModifiers::CONTROL)
+                && !key.modifiers.contains(KeyModifiers::ALT) =>
+        {
+            Action::DriveType(c)
         }
         _ => Action::None,
     }

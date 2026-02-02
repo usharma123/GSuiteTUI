@@ -2,6 +2,7 @@ use tokio::sync::mpsc;
 
 use crate::calendar::CalendarState;
 use crate::config::Config;
+use crate::drive::DriveBrowserState;
 use crate::editor::EditorState;
 use crate::engine::TaskResult;
 use crate::mail::{ComposeState, InboxState};
@@ -17,6 +18,7 @@ pub struct AppState {
     pub inbox: InboxState,
     pub compose: Option<ComposeState>,
     pub palette: Option<PaletteState>,
+    pub drive: DriveBrowserState,
     pub status: StatusLine,
     pub should_quit: bool,
     pub config: Config,
@@ -44,6 +46,7 @@ impl AppState {
             inbox: InboxState::new(),
             compose: None,
             palette: None,
+            drive: DriveBrowserState::new(),
             status,
             should_quit: false,
             config,
