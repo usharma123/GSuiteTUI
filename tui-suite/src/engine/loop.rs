@@ -9,7 +9,7 @@ use ratatui::Terminal;
 use tokio::sync::mpsc;
 use tokio::time::interval;
 
-use crate::app::AppState;
+use crate::app::{AppState, Scene};
 use crate::auth::token_store::get_token_store;
 use crate::config::Config;
 use crate::engine::input::handle_key;
@@ -151,6 +151,37 @@ fn handle_task_result(app: &mut AppState, result: TaskResult) {
         TaskResult::EmailFetched(Err(e)) => {
             debug_log(&format!("Email fetch failed: {}", e));
             app.set_status(format!("Failed to load email: {e}"));
+        }
+        TaskResult::DriveDocsListed(Ok(docs)) => {
+            if let Some(ref mut palette) = app.palette {
+                if palette.is_drive_search() {
+                    palette.set_drive_results(docs);
+                }
+            }
+        }
+        TaskResult::DriveDocsListed(Err(e)) => {
+            if let Some(ref mut palette) = app.palette {
+                if palette.is_drive_search() {
+                    palette.set_drive_error(format!("Drive search failed: {e}"));
+                }
+            }
+        }
+        TaskResult::DriveDocOpened(Ok(content)) => {
+            app.editor
+                .replace_with_drive_doc(content.doc.clone(), &content.markdown);
+            app.scene = Scene::Editor;
+            app.update_status_hint();
+            app.set_status(format!("Opened {}", content.doc.name));
+        }
+        TaskResult::DriveDocOpened(Err(e)) => {
+            app.set_status(format!("Failed to open Drive doc: {e}"));
+        }
+        TaskResult::DriveDocSaved(Ok(())) => {
+            app.editor.set_saved();
+            app.set_status("Saved to Drive");
+        }
+        TaskResult::DriveDocSaved(Err(e)) => {
+            app.set_status(format!("Drive save failed: {e}"));
         }
     }
 }

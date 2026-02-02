@@ -27,9 +27,16 @@ impl EditorState {
         let cursor_col = self.doc.cursor.col + 1;
 
         // Build title with modified indicator
+        let source_title = self.source_title();
+        let source_label = if self.drive_doc().is_some() {
+            format!("(Drive) {}", source_title)
+        } else {
+            source_title
+        };
         let mut title_spans = vec![
             Span::styled(" Editor ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
             Span::styled("(Markdown) ", Style::default().fg(Color::DarkGray)),
+            Span::styled(format!("{} ", source_label), Style::default().fg(Color::DarkGray)),
         ];
         
         // Add save status indicator

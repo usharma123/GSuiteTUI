@@ -3,6 +3,7 @@ use tokio::sync::mpsc;
 use crate::auth::TokenPair;
 use crate::calendar::CalendarEvent;
 use crate::error::Result;
+use crate::drive::{DriveDoc, DriveDocContent};
 use crate::mail::{EmailDetail, EmailSummary};
 
 #[derive(Debug)]
@@ -13,6 +14,9 @@ pub enum TaskResult {
     EmailFetched(Result<EmailDetail>),
     OAuthComplete(Result<TokenPair>),
     TokenRefreshed(Result<TokenPair>),
+    DriveDocsListed(Result<Vec<DriveDoc>>),
+    DriveDocOpened(Result<DriveDocContent>),
+    DriveDocSaved(Result<()>),
 }
 
 #[derive(Debug)]
@@ -73,5 +77,38 @@ where
     tokio::spawn(async move {
         let result = fetch_fn().await;
         let _ = tx.send(TaskResult::EmailFetched(result));
+    });
+}
+
+pub fn spawn_drive_list<F, Fut>(tx: mpsc::UnboundedSender<TaskResult>, list_fn: F)
+where
+    F: FnOnce() -> Fut + Send + 'static,
+    Fut: std::future::Future<Output = Result<Vec<DriveDoc>>> + Send,
+{
+    tokio::spawn(async move {
+        let result = list_fn().await;
+        let _ = tx.send(TaskResult::DriveDocsListed(result));
+    });
+}
+
+pub fn spawn_drive_open<F, Fut>(tx: mpsc::UnboundedSender<TaskResult>, open_fn: F)
+where
+    F: FnOnce() -> Fut + Send + 'static,
+    Fut: std::future::Future<Output = Result<DriveDocContent>> + Send,
+{
+    tokio::spawn(async move {
+        let result = open_fn().await;
+        let _ = tx.send(TaskResult::DriveDocOpened(result));
+    });
+}
+
+pub fn spawn_drive_save<F, Fut>(tx: mpsc::UnboundedSender<TaskResult>, save_fn: F)
+where
+    F: FnOnce() -> Fut + Send + 'static,
+    Fut: std::future::Future<Output = Result<()>> + Send,
+{
+    tokio::spawn(async move {
+        let result = save_fn().await;
+        let _ = tx.send(TaskResult::DriveDocSaved(result));
     });
 }

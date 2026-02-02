@@ -7,9 +7,11 @@ use crate::app::keymap::{
 use crate::app::{AppState, Scene};
 use crate::auth::{token_store::get_token_store, OAuthFlow};
 use crate::calendar::sync::GoogleCalendarProvider;
+use crate::drive::DriveProvider;
+use crate::editor::markdown::markdown_to_html;
 use crate::engine::tasks::{
-    spawn_calendar_sync, spawn_email_fetch, spawn_inbox_sync, spawn_mail_send, spawn_oauth,
-    CalendarSyncResult,
+    spawn_calendar_sync, spawn_drive_list, spawn_drive_open, spawn_drive_save, spawn_email_fetch,
+    spawn_inbox_sync, spawn_mail_send, spawn_oauth, CalendarSyncResult,
 };
 use crate::mail::gmail::{GmailProvider, MailProvider};
 use crate::mail::mime::EmailMessage;
@@ -36,14 +38,31 @@ pub fn handle_key(app: &mut AppState, key: KeyEvent) {
             Action::PaletteUp => palette.move_up(),
             Action::PaletteDown => palette.move_down(),
             Action::PaletteSelect => {
-                if let Some(cmd) = palette.selected_command() {
-                    execute_palette_command(app, cmd);
+                if palette.is_drive_search() {
+                    if let Some(doc) = palette.selected_drive_doc() {
+                        open_drive_doc(app, doc);
+                    }
+                    app.close_palette();
+                } else if let Some(cmd) = palette.selected_command() {
+                    let should_close = execute_palette_command(app, cmd);
+                    if should_close {
+                        app.close_palette();
+                    }
                 }
-                app.close_palette();
             }
             Action::ClosePalette => app.close_palette(),
-            Action::PaletteType(c) => palette.type_char(c),
-            Action::PaletteBackspace => palette.backspace(),
+            Action::PaletteType(c) => {
+                palette.type_char(c);
+                if palette.is_drive_search() {
+                    trigger_drive_search(app);
+                }
+            }
+            Action::PaletteBackspace => {
+                palette.backspace();
+                if palette.is_drive_search() {
+                    trigger_drive_search(app);
+                }
+            }
             _ => {}
         }
         return;
@@ -68,10 +87,7 @@ pub fn handle_key(app: &mut AppState, key: KeyEvent) {
                 return;
             }
             Action::Save => {
-                match app.editor.save() {
-                    Ok(()) => app.set_status("Saved"),
-                    Err(e) => app.set_status(format!("Save failed: {e}")),
-                }
+                handle_editor_save(app);
                 return;
             }
             Action::ClosePalette => {
@@ -275,19 +291,22 @@ fn handle_compose_key(app: &mut AppState, key: KeyEvent) {
     }
 }
 
-fn execute_palette_command(app: &mut AppState, cmd: PaletteCommand) {
+fn execute_palette_command(app: &mut AppState, cmd: PaletteCommand) -> bool {
     match cmd {
         PaletteCommand::SwitchToEditor => {
             app.scene = Scene::Editor;
             app.update_status_hint();
+            true
         }
         PaletteCommand::SwitchToCalendar => {
             app.scene = Scene::CalendarWeek;
             app.update_status_hint();
+            true
         }
         PaletteCommand::ComposeEmail => {
             app.open_compose();
             app.update_status_hint();
+            true
         }
         PaletteCommand::OpenInbox => {
             app.open_inbox();
@@ -306,12 +325,11 @@ fn execute_palette_command(app: &mut AppState, cmd: PaletteCommand) {
                     });
                 }
             }
+            true
         }
         PaletteCommand::Save => {
-            match app.editor.save() {
-                Ok(()) => app.set_status("Saved"),
-                Err(e) => app.set_status(format!("Save failed: {e}")),
-            }
+            handle_editor_save(app);
+            true
         }
         PaletteCommand::SyncCalendar => {
             debug_log("SyncCalendar triggered");
@@ -353,10 +371,20 @@ fn execute_palette_command(app: &mut AppState, cmd: PaletteCommand) {
                     app.set_status(format!("Token load error: {e}"));
                 }
             }
+            true
         }
-        PaletteCommand::Undo => app.editor.undo(),
-        PaletteCommand::Redo => app.editor.redo(),
-        PaletteCommand::Quit => app.should_quit = true,
+        PaletteCommand::Undo => {
+            app.editor.undo();
+            true
+        }
+        PaletteCommand::Redo => {
+            app.editor.redo();
+            true
+        }
+        PaletteCommand::Quit => {
+            app.should_quit = true;
+            true
+        }
         PaletteCommand::LoginGoogle => {
             debug_log(&format!(
                 "LoginGoogle triggered, client_id: {:?}, client_secret: {:?}",
@@ -378,7 +406,7 @@ fn execute_palette_command(app: &mut AppState, cmd: PaletteCommand) {
                             if let Err(e) = flow.open_browser() {
                                 debug_log(&format!("Failed to open browser: {}", e));
                                 app.set_status(format!("Failed to open browser: {e}"));
-                                return;
+                                return true;
                             }
                             debug_log("Browser opened, spawning oauth task");
                             let tx = app.task_tx.clone();
@@ -395,6 +423,99 @@ fn execute_palette_command(app: &mut AppState, cmd: PaletteCommand) {
                     app.set_status("Missing credentials - see ~/.config/term-workspace/config.json");
                 }
             }
+            true
         }
+        PaletteCommand::OpenDriveDoc => {
+            if let Some(ref mut palette) = app.palette {
+                palette.enter_drive_search();
+            }
+            trigger_drive_search(app);
+            false
+        }
+    }
+}
+
+fn handle_editor_save(app: &mut AppState) {
+    if let Some(doc) = app.editor.drive_doc() {
+        let store = get_token_store();
+        match store.load() {
+            Ok(Some(tokens)) if !tokens.is_expired() => {
+                app.set_status("Saving to Drive...");
+                let access_token = tokens.access_token.clone();
+                let body_html = markdown_to_html(&app.editor.markdown());
+                let html = format!(
+                    "<!doctype html><html><body>{}</body></html>",
+                    body_html
+                );
+                let tx = app.task_tx.clone();
+                spawn_drive_save(tx, move || async move {
+                    let provider = DriveProvider::new(access_token);
+                    provider.update_doc_html(&doc.id, &html).await
+                });
+            }
+            Ok(Some(_)) => app.set_status("Token expired - please Login Google again"),
+            Ok(None) => app.set_status("Not logged in - use Login Google first"),
+            Err(e) => app.set_status(format!("Token error: {e}")),
+        }
+    } else {
+        match app.editor.save_local() {
+            Ok(()) => app.set_status("Saved"),
+            Err(e) => app.set_status(format!("Save failed: {e}")),
+        }
+    }
+}
+
+fn trigger_drive_search(app: &mut AppState) {
+    let query = match app.palette.as_ref() {
+        Some(palette) => palette.query.clone(),
+        None => return,
+    };
+
+    let store = get_token_store();
+    match store.load() {
+        Ok(Some(tokens)) if !tokens.is_expired() => {
+            if let Some(ref mut palette) = app.palette {
+                palette.set_drive_loading();
+            }
+            let access_token = tokens.access_token.clone();
+            let tx = app.task_tx.clone();
+            spawn_drive_list(tx, move || async move {
+                let provider = DriveProvider::new(access_token);
+                provider.list_docs(&query, 20).await
+            });
+        }
+        Ok(Some(_)) => {
+            if let Some(ref mut palette) = app.palette {
+                palette.set_drive_error("Token expired - please Login Google again".to_string());
+            }
+        }
+        Ok(None) => {
+            if let Some(ref mut palette) = app.palette {
+                palette.set_drive_error("Not logged in - use Login Google first".to_string());
+            }
+        }
+        Err(e) => {
+            if let Some(ref mut palette) = app.palette {
+                palette.set_drive_error(format!("Token error: {e}"));
+            }
+        }
+    }
+}
+
+fn open_drive_doc(app: &mut AppState, doc: crate::drive::DriveDoc) {
+    let store = get_token_store();
+    match store.load() {
+        Ok(Some(tokens)) if !tokens.is_expired() => {
+            app.set_status("Loading Drive doc...");
+            let access_token = tokens.access_token.clone();
+            let tx = app.task_tx.clone();
+            spawn_drive_open(tx, move || async move {
+                let provider = DriveProvider::new(access_token);
+                provider.export_doc_markdown(&doc).await
+            });
+        }
+        Ok(Some(_)) => app.set_status("Token expired - please Login Google again"),
+        Ok(None) => app.set_status("Not logged in - use Login Google first"),
+        Err(e) => app.set_status(format!("Token error: {e}")),
     }
 }

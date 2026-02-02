@@ -39,7 +39,7 @@ impl AppState {
 
         Self {
             scene,
-            editor: EditorState::new(notes_path),
+            editor: EditorState::new_local(notes_path),
             calendar,
             inbox: InboxState::new(),
             compose: None,

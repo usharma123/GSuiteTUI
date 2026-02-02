@@ -38,6 +38,7 @@ rand = "0.8"
 sha2 = "0.10"
 unicode-width = "0.2"
 html2text = "0.12"
+html2md = { package = "tpnote-html2md", version = "0.3.3" }
 
 [dev-dependencies]
 tokio-test = "0.4"
