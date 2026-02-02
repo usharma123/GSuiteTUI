@@ -181,6 +181,8 @@ impl EditorState {
             Span::styled(" Undo ", Style::default().fg(Color::DarkGray)),
             Span::styled("^Y", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
             Span::styled(" Redo ", Style::default().fg(Color::DarkGray)),
+            Span::styled("^P", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Span::styled(" Commands ", Style::default().fg(Color::DarkGray)),
             Span::styled("Tab", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
             Span::styled(" Switch ", Style::default().fg(Color::DarkGray)),
         ];

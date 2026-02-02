@@ -6,6 +6,7 @@ pub enum Scene {
     MailCompose,
     MailInbox,
     DriveBrowser,
+    Setup,
 }
 
 impl Scene {
@@ -16,6 +17,8 @@ impl Scene {
             Scene::MailInbox => Scene::DriveBrowser,
             Scene::DriveBrowser => Scene::Editor,
             Scene::MailCompose => Scene::Editor,
+            // Setup is modal - doesn't participate in Tab cycling
+            Scene::Setup => Scene::Setup,
         }
     }
 
@@ -26,6 +29,7 @@ impl Scene {
             Scene::MailCompose => "Compose Email",
             Scene::MailInbox => "Inbox",
             Scene::DriveBrowser => "Drive",
+            Scene::Setup => "Setup",
         }
     }
 }

@@ -22,35 +22,31 @@ impl StatusLine {
     pub fn set_hint_for_scene(&mut self, scene: Scene) {
         self.hint = match scene {
             Scene::Editor => {
-                "Ctrl+S: save | Alt+1/2/3: heading | Ctrl+R: sync | Alt+D: Drive | Tab: next view"
+                "Ctrl+P: commands | Ctrl+S: save | Alt+1/2/3: heading | Ctrl+R: sync | Alt+D: Drive | Tab: next view"
                     .to_string()
             }
             Scene::CalendarWeek => {
-                "h/l: day | H/L: week | j/k: scroll | g: now | Ctrl+R or s: sync"
+                "Ctrl+P: commands | h/l: day | H/L: week | j/k: scroll | g: now | Ctrl+R or s: sync"
                     .to_string()
             }
             Scene::MailCompose => {
-                "Tab: next field | Ctrl+D: send | Ctrl+R: sync | Alt+D: Drive".to_string()
-            }
-            Scene::MailInbox => {
-                "r: refresh | Ctrl+R: sync | Alt+D: Drive | Tab: next view".to_string()
-            }
-            Scene::DriveBrowser => {
-                "Type to search | Enter: open | Ctrl+N: new doc | Alt+D: Drive | Tab: next view"
+                "Ctrl+P: commands | Tab: next field | Ctrl+D: send | Ctrl+R: sync | Alt+D: Drive"
                     .to_string()
             }
+            Scene::MailInbox => {
+                "Ctrl+P: commands | r: refresh | Ctrl+R: sync | Alt+D: Drive | Tab: next view"
+                    .to_string()
+            }
+            Scene::DriveBrowser => {
+                "Ctrl+P: commands | Type to search | Enter: open | Ctrl+N: new doc | Alt+D: Drive | Tab: next view"
+                    .to_string()
+            }
+            Scene::Setup => String::new(), // Setup has its own footer
         };
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect) {
-        // Combine message and hint
-        let display = if self.message.is_empty() {
-            self.hint.clone()
-        } else if self.hint.is_empty() {
-            self.message.clone()
-        } else {
-            format!("{} │ {}", self.message, self.hint)
-        };
+        let display = self.message.clone();
 
         let paragraph = Paragraph::new(display)
             .block(Block::default().borders(Borders::TOP))

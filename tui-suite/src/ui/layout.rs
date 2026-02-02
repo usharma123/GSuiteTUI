@@ -6,6 +6,14 @@ use ratatui::Frame;
 use crate::app::{AppState, Scene};
 
 pub fn render_app(f: &mut Frame, app: &mut AppState) {
+    // Setup wizard is fullscreen overlay
+    if app.scene == Scene::Setup {
+        if let Some(ref setup) = app.setup {
+            setup.render(f, f.area());
+        }
+        return;
+    }
+
     let root = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -17,21 +25,32 @@ pub fn render_app(f: &mut Frame, app: &mut AppState) {
 
     render_tabs(f, root[0], app.scene);
 
+    let shortcuts_hint = app.status.hint.clone();
+
     // Main content area
     match app.scene {
         Scene::Editor => app.editor.render(f, root[1]),
-        Scene::CalendarWeek => app.calendar.render_week(f, root[1]),
+        Scene::CalendarWeek => render_with_shortcuts(f, root[1], &shortcuts_hint, |area| {
+            app.calendar.render_week(f, area);
+        }),
         Scene::MailCompose => {
             if let Some(ref mut compose) = app.compose {
-                compose.render(f, root[1]);
+                render_with_shortcuts(f, root[1], &shortcuts_hint, |area| {
+                    compose.render(f, area);
+                });
             }
         }
         Scene::MailInbox => {
-            app.inbox.render(f, root[1]);
+            render_with_shortcuts(f, root[1], &shortcuts_hint, |area| {
+                app.inbox.render(f, area);
+            });
         }
         Scene::DriveBrowser => {
-            app.drive.render(f, root[1]);
+            render_with_shortcuts(f, root[1], &shortcuts_hint, |area| {
+                app.drive.render(f, area);
+            });
         }
+        Scene::Setup => {} // Handled above
     }
 
     // Status line
@@ -51,6 +70,7 @@ fn render_tabs(f: &mut Frame, area: Rect, scene: Scene) {
         Scene::MailInbox => 2,
         Scene::DriveBrowser => 3,
         Scene::MailCompose => 2,
+        Scene::Setup => 0, // Not shown, but needed for exhaustiveness
     };
 
     let mut spans = Vec::new();
@@ -69,5 +89,29 @@ fn render_tabs(f: &mut Frame, area: Rect, scene: Scene) {
     }
 
     let bar = Paragraph::new(Line::from(spans));
+    f.render_widget(bar, area);
+}
+
+fn render_with_shortcuts<F>(f: &mut Frame, area: Rect, hint: &str, render_content: F)
+where
+    F: FnOnce(Rect),
+{
+    if hint.is_empty() {
+        render_content(area);
+        return;
+    }
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(1), Constraint::Length(1)])
+        .split(area);
+
+    render_content(chunks[0]);
+    render_shortcuts_bar(f, chunks[1], hint);
+}
+
+fn render_shortcuts_bar(f: &mut Frame, area: Rect, hint: &str) {
+    let bar = Paragraph::new(hint)
+        .style(Style::default().fg(Color::Gray).bg(Color::Rgb(30, 30, 40)));
     f.render_widget(bar, area);
 }

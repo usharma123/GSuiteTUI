@@ -5,6 +5,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{AppError, Result};
 
+/// Default Google OAuth client ID (embedded at compile time)
+/// Set TUI_SUITE_GOOGLE_CLIENT_ID env var at build time to override
+const DEFAULT_CLIENT_ID: Option<&str> = option_env!("TUI_SUITE_GOOGLE_CLIENT_ID");
+
+/// Default Google OAuth client secret (embedded at compile time)
+/// Set TUI_SUITE_GOOGLE_CLIENT_SECRET env var at build time to override
+const DEFAULT_CLIENT_SECRET: Option<&str> = option_env!("TUI_SUITE_GOOGLE_CLIENT_SECRET");
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub google_client_id: Option<String>,
@@ -16,8 +24,8 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            google_client_id: None,
-            google_client_secret: None,
+            google_client_id: DEFAULT_CLIENT_ID.map(String::from),
+            google_client_secret: DEFAULT_CLIENT_SECRET.map(String::from),
             calendar_id: "primary".to_string(),
             notes_path: PathBuf::from("notes.md"),
         }
@@ -28,15 +36,24 @@ impl Config {
     pub fn load() -> Result<Self> {
         let config_path = Self::config_path()?;
 
-        if config_path.exists() {
+        let mut config = if config_path.exists() {
             let content = std::fs::read_to_string(&config_path)
                 .map_err(|e| AppError::Config(format!("Failed to read config: {e}")))?;
-            let config: Config = serde_json::from_str(&content)
-                .map_err(|e| AppError::Config(format!("Failed to parse config: {e}")))?;
-            Ok(config)
+            serde_json::from_str(&content)
+                .map_err(|e| AppError::Config(format!("Failed to parse config: {e}")))?
         } else {
-            Ok(Config::default())
+            Config::default()
+        };
+
+        // Fall back to embedded credentials if user hasn't configured their own
+        if config.google_client_id.is_none() {
+            config.google_client_id = DEFAULT_CLIENT_ID.map(String::from);
         }
+        if config.google_client_secret.is_none() {
+            config.google_client_secret = DEFAULT_CLIENT_SECRET.map(String::from);
+        }
+
+        Ok(config)
     }
 
     pub fn save(&self) -> Result<()> {

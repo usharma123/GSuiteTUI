@@ -15,7 +15,7 @@ use crate::config::Config;
 use crate::engine::input::handle_key;
 use crate::engine::tasks::TaskResult;
 use crate::storage::EventCache;
-use crate::ui::render_app;
+use crate::ui::{render_app, SetupWizardState};
 
 fn debug_log(msg: &str) {
     use std::fs::OpenOptions;
@@ -33,6 +33,15 @@ pub async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> a
     let (task_tx, mut task_rx) = mpsc::unbounded_channel::<TaskResult>();
     let config = Config::load().unwrap_or_default();
     let mut app = AppState::new(config, task_tx);
+
+    // Check if first-run setup is needed (no credentials configured)
+    let needs_setup = app.config.google_client_id.is_none()
+        || app.config.google_client_secret.is_none();
+
+    if needs_setup {
+        app.scene = Scene::Setup;
+        app.setup = Some(SetupWizardState::new());
+    }
 
     let mut event_stream = EventStream::new();
     let mut render_interval = interval(Duration::from_millis(50));

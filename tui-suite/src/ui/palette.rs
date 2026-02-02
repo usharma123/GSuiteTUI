@@ -18,6 +18,7 @@ pub enum PaletteCommand {
     Redo,
     Quit,
     LoginGoogle,
+    SetupCredentials,
 }
 
 impl PaletteCommand {
@@ -34,6 +35,7 @@ impl PaletteCommand {
             PaletteCommand::Redo => "Redo",
             PaletteCommand::Quit => "Quit",
             PaletteCommand::LoginGoogle => "Login Google",
+            PaletteCommand::SetupCredentials => "Setup Credentials",
         }
     }
 
@@ -49,6 +51,7 @@ impl PaletteCommand {
             PaletteCommand::Undo,
             PaletteCommand::Redo,
             PaletteCommand::LoginGoogle,
+            PaletteCommand::SetupCredentials,
             PaletteCommand::Quit,
         ]
     }

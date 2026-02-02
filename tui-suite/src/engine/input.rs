@@ -1,4 +1,4 @@
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::app::keymap::{
     map_calendar_key, map_compose_key, map_drive_key, map_editor_key, map_global_key,
@@ -31,6 +31,12 @@ fn debug_log(msg: &str) {
 }
 
 pub fn handle_key(app: &mut AppState, key: KeyEvent) {
+    // If setup wizard is active, handle setup input first
+    if app.scene == Scene::Setup {
+        handle_setup_key(app, key);
+        return;
+    }
+
     // If palette is open, handle palette input first
     if let Some(ref mut palette) = app.palette {
         let action = map_palette_key(key);
@@ -122,6 +128,7 @@ pub fn handle_key(app: &mut AppState, key: KeyEvent) {
         Scene::MailCompose => handle_compose_key(app, key),
         Scene::MailInbox => handle_inbox_key(app, key),
         Scene::DriveBrowser => handle_drive_key(app, key),
+        Scene::Setup => {} // Handled at the start of handle_key
     }
 }
 
@@ -444,9 +451,13 @@ fn execute_palette_command(app: &mut AppState, cmd: PaletteCommand) -> bool {
                 }
                 _ => {
                     debug_log("Missing credentials");
-                    app.set_status("Missing credentials - see ~/.config/term-workspace/config.json");
+                    app.set_status("Missing credentials - run Setup Credentials first");
                 }
             }
+            true
+        }
+        PaletteCommand::SetupCredentials => {
+            start_setup_wizard(app);
             true
         }
     }
@@ -665,4 +676,75 @@ fn open_drive_doc(app: &mut AppState, doc: crate::drive::DriveDoc) {
         Ok(None) => app.set_status("Not logged in - use Login Google first"),
         Err(e) => app.set_status(format!("Token error: {e}")),
     }
+}
+
+fn handle_setup_key(app: &mut AppState, key: KeyEvent) {
+    let setup = match app.setup.as_mut() {
+        Some(s) => s,
+        None => return,
+    };
+
+    match key.code {
+        KeyCode::Enter => {
+            if setup.is_complete() {
+                // Save credentials and close setup
+                match setup.save_credentials() {
+                    Ok(()) => {
+                        // Reload config with new credentials
+                        if let Ok(new_config) = crate::config::Config::load() {
+                            app.config = new_config;
+                        }
+                        app.set_status("Credentials saved! Use Ctrl+P > Login Google to authenticate.");
+                        app.close_setup();
+                    }
+                    Err(e) => {
+                        setup.error = Some(format!("Failed to save: {e}"));
+                    }
+                }
+            } else {
+                setup.advance();
+            }
+        }
+        KeyCode::Esc => {
+            if setup.step == crate::ui::setup::SetupStep::Welcome {
+                // Skip setup entirely
+                app.close_setup();
+                app.set_status("Setup skipped. Use Ctrl+P > Setup Credentials to configure later.");
+            } else {
+                setup.go_back();
+            }
+        }
+        KeyCode::Char('o') | KeyCode::Char('O') => {
+            if setup.step.has_browser_action() {
+                if let Err(e) = setup.open_browser() {
+                    setup.error = Some(e);
+                }
+            }
+        }
+        KeyCode::Char('v') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            // Paste from clipboard
+            if setup.step.is_input_step() {
+                if let Ok(mut clipboard) = arboard::Clipboard::new() {
+                    if let Ok(text) = clipboard.get_text() {
+                        setup.paste(&text);
+                    }
+                }
+            }
+        }
+        KeyCode::Char(c) => {
+            if setup.step.is_input_step() {
+                setup.type_char(c);
+            }
+        }
+        KeyCode::Backspace => {
+            if setup.step.is_input_step() {
+                setup.backspace();
+            }
+        }
+        _ => {}
+    }
+}
+
+fn start_setup_wizard(app: &mut AppState) {
+    app.open_setup();
 }

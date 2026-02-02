@@ -7,7 +7,7 @@ use crate::editor::EditorState;
 use crate::engine::TaskResult;
 use crate::mail::{ComposeState, InboxState};
 use crate::storage::EventCache;
-use crate::ui::{PaletteState, StatusLine};
+use crate::ui::{PaletteState, SetupWizardState, StatusLine};
 
 use super::scene::Scene;
 
@@ -19,6 +19,7 @@ pub struct AppState {
     pub compose: Option<ComposeState>,
     pub palette: Option<PaletteState>,
     pub drive: DriveBrowserState,
+    pub setup: Option<SetupWizardState>,
     pub status: StatusLine,
     pub should_quit: bool,
     pub config: Config,
@@ -47,6 +48,7 @@ impl AppState {
             compose: None,
             palette: None,
             drive: DriveBrowserState::new(),
+            setup: None,
             status,
             should_quit: false,
             config,
@@ -56,6 +58,7 @@ impl AppState {
 
     pub fn open_inbox(&mut self) {
         self.scene = Scene::MailInbox;
+        self.update_status_hint();
     }
 
     pub fn open_palette(&mut self) {
@@ -69,11 +72,13 @@ impl AppState {
     pub fn open_compose(&mut self) {
         self.compose = Some(ComposeState::new());
         self.scene = Scene::MailCompose;
+        self.update_status_hint();
     }
 
     pub fn close_compose(&mut self) {
         self.compose = None;
         self.scene = Scene::Editor;
+        self.update_status_hint();
     }
 
     pub fn set_status(&mut self, msg: impl Into<String>) {
@@ -82,5 +87,16 @@ impl AppState {
 
     pub fn update_status_hint(&mut self) {
         self.status.set_hint_for_scene(self.scene);
+    }
+
+    pub fn open_setup(&mut self) {
+        self.setup = Some(SetupWizardState::new());
+        self.scene = Scene::Setup;
+    }
+
+    pub fn close_setup(&mut self) {
+        self.setup = None;
+        self.scene = Scene::Editor;
+        self.update_status_hint();
     }
 }
