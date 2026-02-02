@@ -23,16 +23,6 @@ cargo build --release
 ./target/release/tui-suite
 ```
 
-### Via npm
-```bash
-npm install -g tui-suite
-```
-
-Or run without installing:
-```bash
-npx tui-suite
-```
-
 ## Configuration & Login
 
 ### Option A: In-app setup (recommended)
