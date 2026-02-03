@@ -11,6 +11,7 @@ pub enum Action {
     SyncCalendar,
     OpenDriveBrowser,
     CreateDriveDoc,
+    OpenSheets,
 
     // Navigation
     MoveUp,
@@ -64,6 +65,13 @@ pub enum Action {
     DriveBackspace,
     DriveCancel,
 
+    // Sheets
+    SheetRefresh,
+    SheetTabPrev,
+    SheetTabNext,
+    SheetEnterEdit,
+    SheetCancelEdit,
+
     // No action
     None,
 }
@@ -76,6 +84,7 @@ pub fn map_global_key(key: KeyEvent) -> Action {
         KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::Save,
         KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::SyncCalendar,
         KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::ALT) => Action::OpenDriveBrowser,
+        KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::ALT) => Action::OpenSheets,
         KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::CreateDriveDoc,
         KeyCode::Esc => Action::ClosePalette,
         _ => Action::None,
@@ -193,6 +202,28 @@ pub fn map_drive_key(key: KeyEvent) -> Action {
                 && !key.modifiers.contains(KeyModifiers::ALT) =>
         {
             Action::DriveType(c)
+        }
+        _ => Action::None,
+    }
+}
+
+pub fn map_sheets_key(key: KeyEvent) -> Action {
+    match key.code {
+        KeyCode::Up => Action::MoveUp,
+        KeyCode::Down => Action::MoveDown,
+        KeyCode::Left => Action::MoveLeft,
+        KeyCode::Right => Action::MoveRight,
+        KeyCode::Enter => Action::SheetEnterEdit,
+        KeyCode::Esc => Action::SheetCancelEdit,
+        KeyCode::Backspace => Action::Backspace,
+        KeyCode::Char('r') => Action::SheetRefresh,
+        KeyCode::Char('[') => Action::SheetTabPrev,
+        KeyCode::Char(']') => Action::SheetTabNext,
+        KeyCode::Char(c)
+            if !key.modifiers.contains(KeyModifiers::CONTROL)
+                && !key.modifiers.contains(KeyModifiers::ALT) =>
+        {
+            Action::InsertChar(c)
         }
         _ => Action::None,
     }

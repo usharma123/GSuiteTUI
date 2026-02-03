@@ -2,7 +2,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::app::keymap::{
     map_calendar_key, map_compose_key, map_drive_key, map_editor_key, map_global_key,
-    map_inbox_key, map_palette_key, Action,
+    map_inbox_key, map_palette_key, map_sheets_key, Action,
 };
 use crate::app::{AppState, Scene};
 use crate::auth::{token_store::get_token_store, OAuthFlow};
@@ -11,10 +11,12 @@ use crate::drive::DriveProvider;
 use crate::editor::markdown::markdown_to_html;
 use crate::engine::tasks::{
     spawn_calendar_sync, spawn_drive_create, spawn_drive_list, spawn_drive_open, spawn_drive_save,
-    spawn_email_fetch, spawn_inbox_sync, spawn_mail_send, spawn_oauth, CalendarSyncResult,
+    spawn_email_fetch, spawn_inbox_sync, spawn_mail_send, spawn_oauth, spawn_sheets_fetch,
+    spawn_sheets_list, spawn_sheets_open, spawn_sheets_update, CalendarSyncResult,
 };
 use crate::mail::gmail::{GmailProvider, MailProvider};
 use crate::mail::mime::EmailMessage;
+use crate::sheets::SheetsProvider;
 use crate::ui::PaletteCommand;
 use std::io::Write;
 
@@ -107,6 +109,10 @@ pub fn handle_key(app: &mut AppState, key: KeyEvent) {
                 open_drive_browser(app);
                 return;
             }
+            Action::OpenSheets => {
+                open_sheets_browser(app);
+                return;
+            }
             Action::CreateDriveDoc => {
                 start_create_drive_doc(app);
                 return;
@@ -128,6 +134,7 @@ pub fn handle_key(app: &mut AppState, key: KeyEvent) {
         Scene::MailCompose => handle_compose_key(app, key),
         Scene::MailInbox => handle_inbox_key(app, key),
         Scene::DriveBrowser => handle_drive_key(app, key),
+        Scene::Sheets => handle_sheets_key(app, key),
         Scene::Setup => {} // Handled at the start of handle_key
     }
 }
@@ -353,6 +360,66 @@ fn handle_drive_key(app: &mut AppState, key: KeyEvent) {
     }
 }
 
+fn handle_sheets_key(app: &mut AppState, key: KeyEvent) {
+    let action = map_sheets_key(key);
+    match app.sheets.view_mode {
+        crate::sheets::SheetsViewMode::Browser => match action {
+            Action::MoveUp => app.sheets.browser.move_up(),
+            Action::MoveDown => app.sheets.browser.move_down(),
+            Action::SheetEnterEdit => {
+                if let Some(doc) = app.sheets.browser.selected_doc() {
+                    open_spreadsheet(app, doc);
+                }
+            }
+            Action::InsertChar(c) => {
+                app.sheets.browser.type_char(c);
+                trigger_sheets_search(app);
+            }
+            Action::Backspace => {
+                app.sheets.browser.backspace();
+                trigger_sheets_search(app);
+            }
+            _ => {}
+        },
+        crate::sheets::SheetsViewMode::Grid => {
+            if app.sheets.grid.mode == crate::sheets::SheetMode::Edit {
+                match action {
+                    Action::InsertChar(c) => app.sheets.grid.edit_buffer.push(c),
+                    Action::Backspace => {
+                        app.sheets.grid.edit_buffer.pop();
+                    }
+                    Action::SheetEnterEdit => {
+                        submit_sheet_edit(app);
+                    }
+                    Action::SheetCancelEdit => {
+                        app.sheets.grid.cancel_edit();
+                    }
+                    _ => {}
+                }
+                return;
+            }
+
+            match action {
+                Action::MoveUp => app.sheets.grid.move_up(),
+                Action::MoveDown => app.sheets.grid.move_down(),
+                Action::MoveLeft => app.sheets.grid.move_left(),
+                Action::MoveRight => app.sheets.grid.move_right(),
+                Action::SheetEnterEdit => app.sheets.grid.start_edit(),
+                Action::SheetRefresh => trigger_sheets_fetch(app),
+                Action::SheetTabPrev => {
+                    app.sheets.grid.switch_tab(-1);
+                    trigger_sheets_fetch(app);
+                }
+                Action::SheetTabNext => {
+                    app.sheets.grid.switch_tab(1);
+                    trigger_sheets_fetch(app);
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
 fn execute_palette_command(app: &mut AppState, cmd: PaletteCommand) -> bool {
     match cmd {
         PaletteCommand::SwitchToEditor => {
@@ -371,6 +438,10 @@ fn execute_palette_command(app: &mut AppState, cmd: PaletteCommand) -> bool {
             }
             trigger_drive_search(app);
             false
+        }
+        PaletteCommand::OpenSheets => {
+            open_sheets_browser(app);
+            true
         }
         PaletteCommand::ComposeEmail => {
             app.open_compose();
@@ -537,6 +608,14 @@ fn open_drive_browser(app: &mut AppState) {
     trigger_drive_browser_list(app);
 }
 
+fn open_sheets_browser(app: &mut AppState) {
+    app.scene = Scene::Sheets;
+    app.update_status_hint();
+    app.sheets.open_browser();
+    debug_log("Sheets: opened browser");
+    trigger_sheets_search(app);
+}
+
 fn trigger_drive_browser_list(app: &mut AppState) {
     let query = app.drive.query.clone();
     let store = get_token_store();
@@ -561,6 +640,160 @@ fn trigger_drive_browser_list(app: &mut AppState) {
         Err(e) => {
             app.drive.set_error(format!("Token error: {e}"));
         }
+    }
+}
+
+fn trigger_sheets_search(app: &mut AppState) {
+    let query = app.sheets.browser.query.clone();
+    debug_log(&format!("Sheets: search query='{}'", query));
+    let store = get_token_store();
+    match store.load() {
+        Ok(Some(tokens)) if !tokens.is_expired() => {
+            app.sheets.browser.set_loading();
+            let access_token = tokens.access_token.clone();
+            let tx = app.task_tx.clone();
+            spawn_sheets_list(tx, move || async move {
+                let provider = SheetsProvider::new(access_token);
+                provider.list_spreadsheets(&query, 50).await
+            });
+        }
+        Ok(Some(_)) => {
+            debug_log("Sheets: token expired");
+            app.sheets
+                .browser
+                .set_error("Token expired - please Login Google again".to_string());
+        }
+        Ok(None) => {
+            debug_log("Sheets: not logged in");
+            app.sheets
+                .browser
+                .set_error("Not logged in - use Login Google first".to_string());
+        }
+        Err(e) => {
+            debug_log(&format!("Sheets: token error {e}"));
+            app.sheets
+                .browser
+                .set_error(format!("Token error: {e}"));
+        }
+    }
+}
+
+fn open_spreadsheet(app: &mut AppState, doc: crate::sheets::SpreadsheetDoc) {
+    let store = get_token_store();
+    match store.load() {
+        Ok(Some(tokens)) if !tokens.is_expired() => {
+            app.scene = Scene::Sheets;
+            app.update_status_hint();
+            app.set_status("Loading spreadsheet...");
+            debug_log(&format!("Sheets: opening spreadsheet id={} name='{}'", doc.id, doc.name));
+            let access_token = tokens.access_token.clone();
+            let tx = app.task_tx.clone();
+            spawn_sheets_open(tx, move || async move {
+                let provider = SheetsProvider::new(access_token);
+                provider.get_spreadsheet_meta(&doc.id).await
+            });
+            app.sheets.open_grid();
+        }
+        Ok(Some(_)) => app.set_status("Token expired - please Login Google again"),
+        Ok(None) => app.set_status("Not logged in - use Login Google first"),
+        Err(e) => app.set_status(format!("Token error: {e}")),
+    }
+}
+
+pub(crate) fn trigger_sheets_fetch(app: &mut AppState) {
+    let store = get_token_store();
+    let Some(spreadsheet_id) = app.sheets.grid.spreadsheet_id.clone() else {
+        app.set_status("No spreadsheet selected");
+        debug_log("Sheets: fetch requested but no spreadsheet selected");
+        return;
+    };
+    let Some(sheet_name) = app.sheets.grid.active_sheet_name() else {
+        app.set_status("No sheet selected");
+        debug_log("Sheets: fetch requested but no sheet selected");
+        return;
+    };
+
+    match store.load() {
+        Ok(Some(tokens)) if !tokens.is_expired() => {
+            app.set_status("Loading sheet...");
+            debug_log(&format!(
+                "Sheets: fetching values spreadsheet_id={} sheet='{}'",
+                spreadsheet_id, sheet_name
+            ));
+            let access_token = tokens.access_token.clone();
+            let tx = app.task_tx.clone();
+            let range = quote_sheet_name(&sheet_name);
+            spawn_sheets_fetch(tx, move || async move {
+                let provider = SheetsProvider::new(access_token);
+                provider.get_values(&spreadsheet_id, &range).await
+            });
+        }
+        Ok(Some(_)) => app.set_status("Token expired - please Login Google again"),
+        Ok(None) => app.set_status("Not logged in - use Login Google first"),
+        Err(e) => app.set_status(format!("Token error: {e}")),
+    }
+}
+
+fn submit_sheet_edit(app: &mut AppState) {
+    let store = get_token_store();
+    let Some(spreadsheet_id) = app.sheets.grid.spreadsheet_id.clone() else {
+        app.set_status("No spreadsheet selected");
+        return;
+    };
+    let Some(sheet_name) = app.sheets.grid.active_sheet_name() else {
+        app.set_status("No sheet selected");
+        return;
+    };
+
+    let row = app.sheets.grid.cursor.row;
+    let col = app.sheets.grid.cursor.col;
+    let value = app.sheets.grid.edit_buffer.clone();
+    let a1 = cell_to_a1(row, col);
+    let range = format!("{}!{}", quote_sheet_name(&sheet_name), a1);
+
+    match store.load() {
+        Ok(Some(tokens)) if !tokens.is_expired() => {
+            app.set_status("Saving cell...");
+            app.sheets.grid.cancel_edit();
+            debug_log(&format!(
+                "Sheets: updating cell range={} value='{}'",
+                range, value
+            ));
+            let access_token = tokens.access_token.clone();
+            let tx = app.task_tx.clone();
+            spawn_sheets_update(tx, move || async move {
+                let provider = SheetsProvider::new(access_token);
+                provider.update_value(&spreadsheet_id, &range, &value).await
+            });
+        }
+        Ok(Some(_)) => app.set_status("Token expired - please Login Google again"),
+        Ok(None) => app.set_status("Not logged in - use Login Google first"),
+        Err(e) => app.set_status(format!("Token error: {e}")),
+    }
+}
+
+fn cell_to_a1(row: usize, col: usize) -> String {
+    format!("{}{}", col_to_label(col), row + 1)
+}
+
+fn col_to_label(mut col: usize) -> String {
+    let mut label = String::new();
+    loop {
+        let rem = col % 26;
+        label.insert(0, (b'A' + rem as u8) as char);
+        if col < 26 {
+            break;
+        }
+        col = (col / 26) - 1;
+    }
+    label
+}
+
+fn quote_sheet_name(name: &str) -> String {
+    if name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' ) {
+        name.to_string()
+    } else {
+        format!("'{}'", name.replace('\'', "''"))
     }
 }
 

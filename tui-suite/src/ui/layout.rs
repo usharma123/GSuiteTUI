@@ -4,6 +4,7 @@ use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
 use crate::app::{AppState, Scene};
+use crate::sheets::view::render_sheets;
 
 pub fn render_app(f: &mut Frame, app: &mut AppState) {
     // Setup wizard is fullscreen overlay
@@ -50,6 +51,11 @@ pub fn render_app(f: &mut Frame, app: &mut AppState) {
                 app.drive.render(f, area);
             });
         }
+        Scene::Sheets => {
+            render_with_shortcuts(f, root[1], &shortcuts_hint, |f, area| {
+                render_sheets(f, area, &mut app.sheets);
+            });
+        }
         Scene::Setup => {} // Handled above
     }
 
@@ -63,12 +69,13 @@ pub fn render_app(f: &mut Frame, app: &mut AppState) {
 }
 
 fn render_tabs(f: &mut Frame, area: Rect, scene: Scene) {
-    let tabs = ["Editor", "Calendar", "Inbox", "Drive"];
+    let tabs = ["Editor", "Calendar", "Inbox", "Drive", "Sheets"];
     let selected = match scene {
         Scene::Editor => 0,
         Scene::CalendarWeek => 1,
         Scene::MailInbox => 2,
         Scene::DriveBrowser => 3,
+        Scene::Sheets => 4,
         Scene::MailCompose => 2,
         Scene::Setup => 0, // Not shown, but needed for exhaustiveness
     };

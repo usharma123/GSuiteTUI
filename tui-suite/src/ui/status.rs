@@ -41,6 +41,10 @@ impl StatusLine {
                 "Ctrl+P: commands | Type to search | Enter: open | Ctrl+N: new doc | Alt+D: Drive | Tab: next view"
                     .to_string()
             }
+            Scene::Sheets => {
+                "Ctrl+P: commands | Enter: edit | r: refresh | [/]: tabs | Alt+S: Sheets | Tab: next view"
+                    .to_string()
+            }
             Scene::Setup => String::new(), // Setup has its own footer
         };
     }

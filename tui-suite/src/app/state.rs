@@ -6,6 +6,7 @@ use crate::drive::DriveBrowserState;
 use crate::editor::EditorState;
 use crate::engine::TaskResult;
 use crate::mail::{ComposeState, InboxState};
+use crate::sheets::SheetsState;
 use crate::storage::EventCache;
 use crate::ui::{PaletteState, SetupWizardState, StatusLine};
 
@@ -19,6 +20,7 @@ pub struct AppState {
     pub compose: Option<ComposeState>,
     pub palette: Option<PaletteState>,
     pub drive: DriveBrowserState,
+    pub sheets: SheetsState,
     pub setup: Option<SetupWizardState>,
     pub status: StatusLine,
     pub should_quit: bool,
@@ -48,6 +50,7 @@ impl AppState {
             compose: None,
             palette: None,
             drive: DriveBrowserState::new(),
+            sheets: SheetsState::new(),
             setup: None,
             status,
             should_quit: false,

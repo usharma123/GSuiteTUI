@@ -219,5 +219,51 @@ fn handle_task_result(app: &mut AppState, result: TaskResult) {
         TaskResult::DriveDocCreated(Err(e)) => {
             app.set_status(format!("Drive create failed: {e}"));
         }
+        TaskResult::SheetsListed(Ok(docs)) => {
+            debug_log(&format!("Sheets: listed {} spreadsheets", docs.len()));
+            if app.scene == Scene::Sheets || app.sheets.view_mode == crate::sheets::SheetsViewMode::Browser {
+                app.sheets.browser.set_docs(docs);
+            }
+        }
+        TaskResult::SheetsListed(Err(e)) => {
+            debug_log(&format!("Sheets: list failed: {e}"));
+            if app.scene == Scene::Sheets || app.sheets.view_mode == crate::sheets::SheetsViewMode::Browser {
+                app.sheets
+                    .browser
+                    .set_error(format!("Spreadsheet search failed: {e}"));
+            }
+        }
+        TaskResult::SheetsOpened(Ok(meta)) => {
+            debug_log(&format!("Sheets: opened spreadsheet '{}' with {} tabs", meta.name, meta.sheets.len()));
+            app.sheets.grid.set_meta(meta);
+            app.sheets.open_grid();
+            app.scene = Scene::Sheets;
+            app.update_status_hint();
+            crate::engine::input::trigger_sheets_fetch(app);
+        }
+        TaskResult::SheetsOpened(Err(e)) => {
+            debug_log(&format!("Sheets: open failed: {e}"));
+            app.set_status(format!("Failed to open spreadsheet: {e}"));
+            app.sheets.open_browser();
+        }
+        TaskResult::SheetsFetched(Ok(data)) => {
+            debug_log(&format!("Sheets: fetched {} rows", data.values.len()));
+            app.sheets.grid.set_values(data);
+            app.sheets.last_sync = Some(chrono::Utc::now());
+            app.set_status("Sheet loaded");
+        }
+        TaskResult::SheetsFetched(Err(e)) => {
+            debug_log(&format!("Sheets: fetch failed: {e}"));
+            app.set_status(format!("Failed to load sheet: {e}"));
+        }
+        TaskResult::SheetsUpdated(Ok(())) => {
+            debug_log("Sheets: update ok");
+            app.set_status("Cell updated");
+            crate::engine::input::trigger_sheets_fetch(app);
+        }
+        TaskResult::SheetsUpdated(Err(e)) => {
+            debug_log(&format!("Sheets: update failed: {e}"));
+            app.set_status(format!("Update failed: {e}"));
+        }
     }
 }

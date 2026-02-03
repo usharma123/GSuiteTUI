@@ -5,6 +5,7 @@ use crate::calendar::CalendarEvent;
 use crate::error::Result;
 use crate::drive::{DriveDoc, DriveDocContent};
 use crate::mail::{EmailDetail, EmailSummary};
+use crate::sheets::{SheetData, SpreadsheetDoc, SpreadsheetMeta};
 
 #[derive(Debug)]
 pub enum TaskResult {
@@ -18,6 +19,10 @@ pub enum TaskResult {
     DriveDocOpened(Result<DriveDocContent>),
     DriveDocSaved(Result<()>),
     DriveDocCreated(Result<DriveDoc>),
+    SheetsListed(Result<Vec<SpreadsheetDoc>>),
+    SheetsOpened(Result<SpreadsheetMeta>),
+    SheetsFetched(Result<SheetData>),
+    SheetsUpdated(Result<()>),
 }
 
 #[derive(Debug)]
@@ -122,5 +127,49 @@ where
     tokio::spawn(async move {
         let result = create_fn().await;
         let _ = tx.send(TaskResult::DriveDocCreated(result));
+    });
+}
+
+pub fn spawn_sheets_list<F, Fut>(tx: mpsc::UnboundedSender<TaskResult>, list_fn: F)
+where
+    F: FnOnce() -> Fut + Send + 'static,
+    Fut: std::future::Future<Output = Result<Vec<SpreadsheetDoc>>> + Send,
+{
+    tokio::spawn(async move {
+        let result = list_fn().await;
+        let _ = tx.send(TaskResult::SheetsListed(result));
+    });
+}
+
+pub fn spawn_sheets_open<F, Fut>(tx: mpsc::UnboundedSender<TaskResult>, open_fn: F)
+where
+    F: FnOnce() -> Fut + Send + 'static,
+    Fut: std::future::Future<Output = Result<SpreadsheetMeta>> + Send,
+{
+    tokio::spawn(async move {
+        let result = open_fn().await;
+        let _ = tx.send(TaskResult::SheetsOpened(result));
+    });
+}
+
+pub fn spawn_sheets_fetch<F, Fut>(tx: mpsc::UnboundedSender<TaskResult>, fetch_fn: F)
+where
+    F: FnOnce() -> Fut + Send + 'static,
+    Fut: std::future::Future<Output = Result<SheetData>> + Send,
+{
+    tokio::spawn(async move {
+        let result = fetch_fn().await;
+        let _ = tx.send(TaskResult::SheetsFetched(result));
+    });
+}
+
+pub fn spawn_sheets_update<F, Fut>(tx: mpsc::UnboundedSender<TaskResult>, update_fn: F)
+where
+    F: FnOnce() -> Fut + Send + 'static,
+    Fut: std::future::Future<Output = Result<()>> + Send,
+{
+    tokio::spawn(async move {
+        let result = update_fn().await;
+        let _ = tx.send(TaskResult::SheetsUpdated(result));
     });
 }
